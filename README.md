@@ -39,10 +39,10 @@ probe → court homography → player tracking → ball tracking
 ## Quickstart
 
 ```bash
-# Core engine + API (CPU dev box — runs the app and the pure-logic stages + tests)
+# Core engine + API (CPU dev box — runs the app, the demo, the pure-logic stages + tests)
 pip install -e '.[api,dev]'
 
-# Run the tests (pure-logic core, no model weights needed)
+# Run the tests (pure-logic core + fixture pipeline, no model weights needed)
 pytest
 
 # Launch the local app
@@ -53,6 +53,24 @@ pip install -e '.[ml]'
 ./scripts/download_weights.sh
 python -m pbengine.pipeline match.mp4 -o result.json
 ```
+
+## Try it now — synthetic demo (no ML, no video, CPU-only)
+
+The three model-backed stages are **dependency-injected**, so a set of scripted stand-ins
+(`engine/pbengine/fixtures.py`) drives the *entire* pipeline + viewer with nothing but the
+core deps installed. This validates the logic (segmentation, serve/bounce/winner, the JSON
+contract) and the viewer **before** the real ML glue exists.
+
+```bash
+# CLI: generates a synthetic court+ball video and analyzes it
+python -m pbengine.pipeline demo.mp4 -o result.json --fixture
+
+# App: click “Run demo” at http://localhost:8000 (POST /api/demo)
+```
+
+The demo produces three rallies exercising each win-reason branch — `ball_out`,
+`double_bounce`, and `net` — with the rendered video, ball trajectory overlay, and bounce
+markers shown in the viewer.
 
 ## Status & caveats
 

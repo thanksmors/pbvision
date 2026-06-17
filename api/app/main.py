@@ -15,7 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from api.app import jobs
@@ -34,6 +34,22 @@ async def upload_match(file: UploadFile) -> dict[str, str]:
     job_id = jobs.create_job(file.filename or "match.mp4", data)
     jobs.start_job(job_id)
     return {"job_id": job_id}
+
+
+@app.post("/api/demo")
+def start_demo() -> dict[str, str]:
+    """Generate a synthetic match and analyze it in fixture mode (no upload, no ML)."""
+    job_id = jobs.create_demo_job()
+    jobs.start_job(job_id, fixture=True)
+    return {"job_id": job_id}
+
+
+@app.get("/api/matches/{job_id}/video")
+def match_video(job_id: str) -> FileResponse:
+    path = jobs.video_path(job_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="video not found")
+    return FileResponse(path, media_type="video/mp4")
 
 
 @app.get("/api/jobs/{job_id}")

@@ -54,22 +54,34 @@ def analyze_match(
     out_path: str | Path | None = None,
     status_cb: StatusCb | None = None,
     stride: int = 1,
+    *,
+    court_detector: CourtDetector | None = None,
+    player_detector: PlayerDetector | None = None,
+    ball_tracker: BallTracker | None = None,
 ) -> MatchResult:
-    """Run the full pipeline and (optionally) write ``result.json``."""
+    """Run the full pipeline and (optionally) write ``result.json``.
+
+    The three model-backed stages are injectable so tests and the fixture demo can supply
+    scripted stand-ins (see :mod:`pbengine.fixtures`) without the ``ml`` extra. They default
+    to the real, lazily-loaded detectors.
+    """
     video_path = Path(video_path)
     report = status_cb or (lambda stage, pct: None)
+    court_detector = court_detector or CourtDetector()
+    player_detector = player_detector or PlayerDetector()
+    ball_tracker = ball_tracker or BallTracker()
 
     report("probe", 0.02)
     meta = probe(video_path)
 
     report("court", 0.1)
-    court_model, homography = _solve_court(video_path)
+    court_model, homography = _solve_court(video_path, court_detector)
 
     report("players", 0.3)
-    players = _track_players(video_path, homography)
+    players = _track_players(video_path, homography, player_detector)
 
     report("ball", 0.6)
-    ball = BallTracker().track(video_path, homography=homography, stride=stride)
+    ball = ball_tracker.track(video_path, homography=homography, stride=stride)
 
     report("rallies", 0.85)
     points = _build_points(ball, meta.fps)
@@ -89,9 +101,10 @@ def analyze_match(
     return result
 
 
-def _solve_court(video_path: Path) -> tuple[CourtModel | None, np.ndarray | None]:
+def _solve_court(
+    video_path: Path, detector: CourtDetector
+) -> tuple[CourtModel | None, np.ndarray | None]:
     """Detect court keypoints on the first frame and solve a single homography for the shot."""
-    detector = CourtDetector()
     for _idx, frame in iter_frames(video_path):
         named = detector.detect(frame)
         homography = detector.solve(frame)
@@ -105,11 +118,13 @@ def _solve_court(video_path: Path) -> tuple[CourtModel | None, np.ndarray | None
     return None, None
 
 
-def _track_players(video_path: Path, homography: np.ndarray | None) -> list[Player]:
+def _track_players(
+    video_path: Path, homography: np.ndarray | None, detector: PlayerDetector
+) -> list[Player]:
     """Track players and project foot positions into court coords; assign teams by side."""
     from pbengine.court.homography import project
 
-    tracks = PlayerDetector().track(video_path)
+    tracks = detector.track(video_path)
     by_id: dict[int, list[PlayerPosition]] = defaultdict(list)
     side_votes: dict[int, list[str]] = defaultdict(list)
     for t in tracks:
@@ -170,9 +185,29 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--stride", type=int, default=1, help="ball-detection frame stride")
     parser.add_argument("--status", help="optional JobStatus file to write progress to")
     parser.add_argument("--job-id", default="cli", help="job id for the status file")
+    parser.add_argument(
+        "--fixture",
+        action="store_true",
+        help="run with scripted synthetic detectors (no ML); generates the video if missing",
+    )
     args = parser.parse_args(argv)
 
     status_path = Path(args.status) if args.status else None
+
+    # Fixture mode: inject scripted stand-ins and synthesize the video if it doesn't exist,
+    # so the whole pipeline + viewer can run with zero ML installed.
+    injected: dict[str, object] = {}
+    if args.fixture:
+        from pbengine import fixtures
+
+        if not Path(args.video).exists():
+            fixtures.write_synthetic_video(args.video)
+        court, players, ball = fixtures.fixture_detectors()
+        injected = {
+            "court_detector": court,
+            "player_detector": players,
+            "ball_tracker": ball,
+        }
 
     def cb(stage: str, pct: float) -> None:
         print(f"[{pct:5.0%}] {stage}", flush=True)
@@ -181,7 +216,9 @@ def main(argv: list[str] | None = None) -> int:
             _write_status(status_path, args.job_id, state, stage, pct)
 
     try:
-        analyze_match(args.video, out_path=args.out, status_cb=cb, stride=args.stride)
+        analyze_match(
+            args.video, out_path=args.out, status_cb=cb, stride=args.stride, **injected
+        )
     except Exception as exc:  # surface failures to the status file for the API
         if status_path is not None:
             status_path.write_text(

@@ -33,26 +33,46 @@ def create_job(upload_name: str, video_bytes: bytes) -> str:
     return job_id
 
 
-def start_job(job_id: str) -> None:
-    """Launch the engine subprocess. Detached: progress is tracked via the status file."""
+def create_demo_job() -> str:
+    """Create a job backed by a freshly-generated synthetic video (no upload, no ML)."""
+    from pbengine import fixtures
+
+    job_id = uuid.uuid4().hex[:12]
+    d = job_dir(job_id)
+    d.mkdir(parents=True, exist_ok=True)
+    fixtures.write_synthetic_video(d / "input.mp4")
+    _write_status(job_id, JobStatus(job_id=job_id, state="pending"))
+    return job_id
+
+
+def start_job(job_id: str, fixture: bool = False) -> None:
+    """Launch the engine subprocess. Detached: progress is tracked via the status file.
+
+    ``fixture=True`` runs the pipeline with scripted synthetic detectors (no ML), used by the
+    demo so the full flow works on a CPU-only box with nothing but the core deps installed.
+    """
     d = job_dir(job_id)
     video = next(d.glob("input.*"))
-    subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "pbengine.pipeline",
-            str(video),
-            "-o",
-            str(d / "result.json"),
-            "--status",
-            str(d / "status.json"),
-            "--job-id",
-            job_id,
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    cmd = [
+        sys.executable,
+        "-m",
+        "pbengine.pipeline",
+        str(video),
+        "-o",
+        str(d / "result.json"),
+        "--status",
+        str(d / "status.json"),
+        "--job-id",
+        job_id,
+    ]
+    if fixture:
+        cmd.append("--fixture")
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def video_path(job_id: str) -> Path | None:
+    """Path to the job's source video, if present (for the viewer's ``<video>`` element)."""
+    return next(job_dir(job_id).glob("input.*"), None)
 
 
 def read_status(job_id: str) -> JobStatus:
