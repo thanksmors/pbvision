@@ -27,7 +27,7 @@ from pbengine.bounce.heuristic import detect_bounces
 from pbengine.court.court_model import side_of
 from pbengine.court.detector import CourtDetector
 from pbengine.detect.players import PlayerDetector
-from pbengine.errors import ModelUnavailable
+from pbengine.errors import CourtNotFound, ModelUnavailable
 from pbengine.rally.segmentation import segment_rallies
 from pbengine.rally.serve import detect_serve
 from pbengine.rally.winner import determine_winner
@@ -80,7 +80,8 @@ def analyze_match(
     # skipped (empty output + a warning) so the engine can run one model at a time.
     report("court", 0.1)
     court_model, homography = _skip_if_unavailable(
-        "court", warnings, (None, None), _solve_court, video_path, court_detector
+        "court", warnings, (None, None), _solve_court, video_path, court_detector,
+        exc_types=(ModelUnavailable, CourtNotFound),
     )
 
     report("players", 0.3)
@@ -112,11 +113,11 @@ def analyze_match(
     return result
 
 
-def _skip_if_unavailable(stage, warnings, fallback, fn, *args, **kwargs):
-    """Run ``fn``; if its model isn't installed, record a warning and return ``fallback``."""
+def _skip_if_unavailable(stage, warnings, fallback, fn, *args, exc_types=(ModelUnavailable,), **kwargs):
+    """Run ``fn``; if it reports a skippable condition, record a warning and return ``fallback``."""
     try:
         return fn(*args, **kwargs)
-    except ModelUnavailable as exc:
+    except exc_types as exc:
         warnings.append(f"{stage}: {exc}")
         return fallback
 
@@ -124,10 +125,14 @@ def _skip_if_unavailable(stage, warnings, fallback, fn, *args, **kwargs):
 def _solve_court(
     video_path: Path, detector: CourtDetector
 ) -> tuple[CourtModel | None, np.ndarray | None]:
-    """Detect court keypoints on the first frame and solve a single homography for the shot."""
+    """Detect court corners on the first frame and solve a single homography for the shot."""
+    from pbengine.court.homography import homography_from_named_points
+
     for _idx, frame in iter_frames(video_path):
         named = detector.detect(frame)
-        homography = detector.solve(frame)
+        if len(named) < 4:
+            raise CourtNotFound(f"only {len(named)}/4 court corners localized")
+        homography = homography_from_named_points(named)
         return (
             CourtModel(
                 homography=homography.tolist(),

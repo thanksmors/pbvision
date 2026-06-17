@@ -17,10 +17,19 @@ if [ ! -d "$THIRD_PARTY/WASB-SBDT" ]; then
 fi
 echo "    Place tennis/badminton weights in $MODELS (see WASB-SBDT README)."
 
-echo "==> Court detector: TennisCourtDetector"
-if [ ! -d "$THIRD_PARTY/TennisCourtDetector" ]; then
-  git clone --depth 1 https://github.com/yastrebksv/TennisCourtDetector "$THIRD_PARTY/TennisCourtDetector"
+echo "==> Court detector: TennisCourtDetector (vendored as a git submodule)"
+git submodule update --init "$THIRD_PARTY/TennisCourtDetector" 2>/dev/null || \
+  { [ -d "$THIRD_PARTY/TennisCourtDetector" ] || \
+    git clone --depth 1 https://github.com/yastrebksv/TennisCourtDetector "$THIRD_PARTY/TennisCourtDetector"; }
+
+COURT_WEIGHTS="$MODELS/court_detector.pt"
+if [ ! -f "$COURT_WEIGHTS" ]; then
+  echo "    Fetching pretrained court weights via gdown..."
+  python -m gdown 1f-Co64ehgq4uddcQm1aFBDtbnyZhQvgG -O "$COURT_WEIGHTS" || \
+    echo "    !! gdown failed (network/Drive quota). Download the model from the TennisCourtDetector
+       README and save it to $COURT_WEIGHTS manually."
+else
+  echo "    Court weights already present at $COURT_WEIGHTS."
 fi
-echo "    Download the pretrained court model into $MODELS (see repo README)."
 
 echo "Done. Weights live in $MODELS (gitignored)."

@@ -11,6 +11,10 @@ venv/
 # Model weights (pulled via scripts/download_weights.sh)
 engine/pbengine/models/*
 !engine/pbengine/models/.gitkeep
+# Weight files anywhere (e.g. ultralytics auto-downloads yolo26n.pt to cwd)
+*.pt
+*.pth
+*.pth.tar
 
 # Runtime data: uploaded videos, results, per-point clips
 data/

@@ -29,12 +29,31 @@ probe → court homography → player tracking → ball tracking
       → rally segmentation → per-rally serve / bounce / winner → result.json
 ```
 
-| Stage | Tooling |
-|---|---|
-| Players | Ultralytics **YOLO26** + ByteTrack (`detect/players.py`) |
-| Court | **TennisCourtDetector** → homography to a normalized pickleball court (`court/`) |
-| Ball | **WASB-SBDT** + jump gating + Kalman smoothing (`ball/`) — the highest-risk stage |
-| Rally / serve / winner | Heuristics on the rectified trajectory (`rally/`) |
+| Stage | Tooling | Status |
+|---|---|---|
+| Players | Ultralytics **YOLO26** + ByteTrack (`detect/players.py`) | ✅ wired + validated |
+| Court | **TennisCourtDetector** (4 outer corners) → homography (`court/`) | ✅ wired (needs weights) |
+| Ball | **WASB-SBDT** + jump gating + Kalman smoothing (`ball/`) — highest-risk stage | ⏳ stub |
+| Rally / serve / winner | Heuristics on the rectified trajectory (`rally/`) | ✅ logic done |
+
+Each model-backed stage **degrades gracefully**: if its weights/deps are missing it's skipped
+with a warning (surfaced in the CLI and viewer) instead of crashing, so you can bring the
+engine up one model at a time.
+
+### Enabling the real models
+
+```bash
+pip install -e '.[ml]'              # torch + ultralytics + gdown
+git submodule update --init         # vendored TennisCourtDetector
+./scripts/download_weights.sh       # fetches the court weights via gdown
+
+# Players use yolo26n + frame-striding by default on CPU; override on a GPU box:
+pbengine clip.mp4 -o result.json --players-weights yolo26m.pt --vid-stride 1
+```
+
+> The court net is **tennis-trained**: it localizes the four outer court corners, which we map
+> to the normalized pickleball court. Accuracy on pickleball footage is the open question of
+> the automatic approach — a manual 4-corner override / pickleball fine-tune is the fallback.
 
 ## Quickstart
 
