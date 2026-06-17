@@ -1,0 +1,53 @@
+[project]
+name = "pbvision"
+version = "0.1.0"
+description = "Pickleball video analysis engine — segment points, detect serves, track the ball, and call the point winner."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "AGPL-3.0-or-later" }
+
+# Core dependencies: pure-logic engine (schema, court geometry, rally/serve/winner
+# heuristics) and the API. These run on a CPU-only dev box with no model weights.
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "pydantic>=2.6",
+    "opencv-python-headless>=4.9",
+]
+
+[project.optional-dependencies]
+# Heavy ML stack. Install on the rented GPU box (or for full local runs).
+ml = [
+    "torch>=2.11",
+    "ultralytics>=8.3",        # YOLO26 + ByteTrack
+    "filterpy>=1.4.5",         # Kalman smoothing for the ball
+    "av>=12.0",                # PyAV decode
+]
+# Local API + thin viewer.
+api = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "python-multipart>=0.0.9",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+pbengine = "pbengine.pipeline:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["engine/pbengine"]
+
+[tool.pytest.ini_options]
+testpaths = ["engine/tests"]
+pythonpath = ["engine"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

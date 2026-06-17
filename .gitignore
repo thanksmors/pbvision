@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Model weights (pulled via scripts/download_weights.sh)
+engine/pbengine/models/*
+!engine/pbengine/models/.gitkeep
+
+# Runtime data: uploaded videos, results, per-point clips
+data/
+runs/
+*.mp4
+!engine/tests/fixtures/*.mp4
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.DS_Store

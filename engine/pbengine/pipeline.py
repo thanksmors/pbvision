@@ -1,0 +1,198 @@
+"""End-to-end match analysis: video in -> ``MatchResult`` JSON out.
+
+Orchestrates the stages in the order from the build plan:
+
+    probe -> court homography -> player tracking -> ball tracking
+          -> rally segmentation -> per-rally serve / bounce / winner
+
+Each stage's heavy model is loaded lazily inside its module, so importing this file is cheap
+and the pure-logic stages stay testable without the ``ml`` extra. Run it standalone on the
+rented GPU box::
+
+    python -m pbengine.pipeline match.mp4 -o result.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import uuid
+from collections import defaultdict
+from pathlib import Path
+from typing import Callable
+
+import numpy as np
+
+from pbengine.ball.tracker import BallTracker
+from pbengine.bounce.heuristic import detect_bounces
+from pbengine.court.court_model import side_of
+from pbengine.court.detector import CourtDetector
+from pbengine.detect.players import PlayerDetector
+from pbengine.rally.segmentation import segment_rallies
+from pbengine.rally.serve import detect_serve
+from pbengine.rally.winner import determine_winner
+from pbengine.schema.models import (
+    BallSample,
+    CourtModel,
+    EngineInfo,
+    JobStatus,
+    MatchResult,
+    Player,
+    PlayerPosition,
+    Point,
+    Team,
+)
+from pbengine.io.video import iter_frames, probe
+
+StatusCb = Callable[[str, float], None]
+
+ENGINE_VERSION = "0.1.0"
+_MODELS = {"detector": "yolo26m", "ball": "wasb-tennis", "court": "tenniscourtdetector"}
+
+
+def analyze_match(
+    video_path: str | Path,
+    out_path: str | Path | None = None,
+    status_cb: StatusCb | None = None,
+    stride: int = 1,
+) -> MatchResult:
+    """Run the full pipeline and (optionally) write ``result.json``."""
+    video_path = Path(video_path)
+    report = status_cb or (lambda stage, pct: None)
+
+    report("probe", 0.02)
+    meta = probe(video_path)
+
+    report("court", 0.1)
+    court_model, homography = _solve_court(video_path)
+
+    report("players", 0.3)
+    players = _track_players(video_path, homography)
+
+    report("ball", 0.6)
+    ball = BallTracker().track(video_path, homography=homography, stride=stride)
+
+    report("rallies", 0.85)
+    points = _build_points(ball, meta.fps)
+
+    result = MatchResult(
+        match_id=str(uuid.uuid4()),
+        video=meta,
+        court=court_model,
+        points=points,
+        players=players,
+        engine=EngineInfo(version=ENGINE_VERSION, models=_MODELS),
+    )
+
+    if out_path is not None:
+        Path(out_path).write_text(result.model_dump_json(indent=2))
+    report("done", 1.0)
+    return result
+
+
+def _solve_court(video_path: Path) -> tuple[CourtModel | None, np.ndarray | None]:
+    """Detect court keypoints on the first frame and solve a single homography for the shot."""
+    detector = CourtDetector()
+    for _idx, frame in iter_frames(video_path):
+        named = detector.detect(frame)
+        homography = detector.solve(frame)
+        return (
+            CourtModel(
+                homography=homography.tolist(),
+                keypoints_px=list(named.values()),
+            ),
+            homography,
+        )
+    return None, None
+
+
+def _track_players(video_path: Path, homography: np.ndarray | None) -> list[Player]:
+    """Track players and project foot positions into court coords; assign teams by side."""
+    from pbengine.court.homography import project
+
+    tracks = PlayerDetector().track(video_path)
+    by_id: dict[int, list[PlayerPosition]] = defaultdict(list)
+    side_votes: dict[int, list[str]] = defaultdict(list)
+    for t in tracks:
+        court_xy = (0.0, 0.0)
+        if homography is not None:
+            court_xy = tuple(project(homography, t.foot_px)[0])
+        by_id[t.track_id].append(PlayerPosition(frame=t.frame, court_xy=court_xy))
+        if homography is not None:
+            side_votes[t.track_id].append(side_of(court_xy))
+
+    players: list[Player] = []
+    for tid, positions in by_id.items():
+        votes = side_votes.get(tid, [])
+        team = Team(max(set(votes), key=votes.count)) if votes else None
+        players.append(Player(track_id=tid, team=team, positions=positions))
+    return players
+
+
+def _build_points(ball: list[BallSample], fps: float) -> list[Point]:
+    """Segment the ball trajectory into points and run serve/bounce/winner per rally."""
+    present = [s.frame for s in ball]
+    spans = segment_rallies(present, fps)
+
+    points: list[Point] = []
+    for i, span in enumerate(spans):
+        traj = [s for s in ball if span.start_frame <= s.frame <= span.end_frame]
+        bounces = detect_bounces(traj)
+        serve = detect_serve(traj)
+        winner, reason, conf = determine_winner(bounces, traj)
+        points.append(
+            Point(
+                point_index=i,
+                start_frame=span.start_frame,
+                end_frame=span.end_frame,
+                serve=serve,
+                rally_length_shots=max(0, len(bounces)),
+                bounces=bounces,
+                ball_trajectory=traj,
+                winner_team=winner,
+                win_reason=reason,
+                confidence=conf,
+                needs_review=conf < 0.6,
+            )
+        )
+    return points
+
+
+def _write_status(status_path: Path, job_id: str, state: str, stage: str, pct: float) -> None:
+    status_path.write_text(
+        JobStatus(job_id=job_id, state=state, stage=stage, progress=pct).model_dump_json()
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Analyze a pickleball match video.")
+    parser.add_argument("video", help="path to the match video")
+    parser.add_argument("-o", "--out", default="result.json", help="output JSON path")
+    parser.add_argument("--stride", type=int, default=1, help="ball-detection frame stride")
+    parser.add_argument("--status", help="optional JobStatus file to write progress to")
+    parser.add_argument("--job-id", default="cli", help="job id for the status file")
+    args = parser.parse_args(argv)
+
+    status_path = Path(args.status) if args.status else None
+
+    def cb(stage: str, pct: float) -> None:
+        print(f"[{pct:5.0%}] {stage}", flush=True)
+        if status_path is not None:
+            state = "done" if stage == "done" else "running"
+            _write_status(status_path, args.job_id, state, stage, pct)
+
+    try:
+        analyze_match(args.video, out_path=args.out, status_cb=cb, stride=args.stride)
+    except Exception as exc:  # surface failures to the status file for the API
+        if status_path is not None:
+            status_path.write_text(
+                JobStatus(
+                    job_id=args.job_id, state="error", message=str(exc)
+                ).model_dump_json()
+            )
+        raise
+    print(f"wrote {args.out}")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

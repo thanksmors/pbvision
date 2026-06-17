@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pbvision — pickleball analysis</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+    progress { width: 100%; height: 1rem; }
+    .point { display: flex; justify-content: space-between; padding: .4rem .6rem; border-bottom: 1px solid #eee; }
+    .badge { font-size: .75rem; padding: .1rem .5rem; border-radius: 999px; background: #eef; }
+    .review { background: #fee; }
+    .muted { color: #888; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <h1>🏓 pbvision</h1>
+  <p class="muted">Upload a pickleball match. Get points, serves, ball trajectory and the winner of each rally.</p>
+
+  <div class="card">
+    <input type="file" id="file" accept="video/*" />
+    <button id="upload">Analyze</button>
+    <div id="progress" style="display:none; margin-top:1rem;">
+      <progress id="bar" max="1" value="0"></progress>
+      <div id="stage" class="muted"></div>
+    </div>
+  </div>
+
+  <div id="results" class="card" style="display:none;">
+    <h2 style="font-size:1.1rem;">Points</h2>
+    <div id="points"></div>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+$("upload").onclick = async () => {
+  const f = $("file").files[0];
+  if (!f) return alert("Pick a video first.");
+  const fd = new FormData();
+  fd.append("file", f);
+  const res = await fetch("/api/matches", { method: "POST", body: fd });
+  const { job_id } = await res.json();
+  $("progress").style.display = "block";
+  poll(job_id);
+};
+
+async function poll(jobId) {
+  const res = await fetch(`/api/jobs/${jobId}`);
+  const s = await res.json();
+  $("bar").value = s.progress || 0;
+  $("stage").textContent = `${s.state} — ${s.stage} ${Math.round((s.progress||0)*100)}%`;
+  if (s.state === "done") return showResult(jobId);
+  if (s.state === "error") return ($("stage").textContent = "error: " + s.message);
+  setTimeout(() => poll(jobId), 1000);
+}
+
+async function showResult(jobId) {
+  const res = await fetch(`/api/matches/${jobId}`);
+  const data = await res.json();
+  $("results").style.display = "block";
+  $("points").innerHTML = "";
+  for (const p of data.points) {
+    const div = document.createElement("div");
+    div.className = "point";
+    const winner = p.winner_team ? `Team ${p.winner_team}` : "—";
+    const review = p.needs_review ? '<span class="badge review">review</span>' : "";
+    div.innerHTML = `
+      <span>#${p.point_index + 1} · frames ${p.start_frame}–${p.end_frame}</span>
+      <span>${winner} <span class="muted">(${p.win_reason})</span>
+        <span class="badge">${Math.round(p.confidence*100)}%</span> ${review}</span>`;
+    $("points").appendChild(div);
+  }
+  if (!data.points.length) $("points").innerHTML = '<p class="muted">No points detected.</p>';
+}
+</script>
+</body>
+</html>
