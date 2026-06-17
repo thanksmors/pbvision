@@ -20,6 +20,7 @@ dependencies = [
 ml = [
     "torch>=2.11",
     "ultralytics>=8.3",        # YOLO26 + ByteTrack
+    "lap>=0.5",                # ByteTrack assignment (else Ultralytics pip-installs it at runtime)
     "filterpy>=1.4.5",         # Kalman smoothing for the ball
     "av>=12.0",                # PyAV decode
 ]
