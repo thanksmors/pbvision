@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from pbengine.court.homography import homography_from_named_points
+from pbengine.errors import ModelUnavailable
 
 
 @dataclass
@@ -30,7 +31,7 @@ class CourtDetector:
             try:
                 from tenniscourtdetector import load_model  # type: ignore
             except ImportError as exc:  # pragma: no cover - environment dependent
-                raise RuntimeError(
+                raise ModelUnavailable(
                     "TennisCourtDetector not available. Initialize the submodule under "
                     "engine/pbengine/third_party/TennisCourtDetector and fetch weights."
                 ) from exc

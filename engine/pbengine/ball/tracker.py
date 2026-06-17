@@ -20,6 +20,7 @@ import numpy as np
 
 from pbengine.ball.kalman import gate_jumps, smooth
 from pbengine.court.homography import project
+from pbengine.errors import ModelUnavailable
 from pbengine.schema.models import BallSample
 
 
@@ -35,7 +36,7 @@ class BallTracker:
                 # Vendored submodule; see scripts/download_weights.sh and third_party/.
                 from wasb_sbdt import load_default_model  # type: ignore
             except ImportError as exc:  # pragma: no cover - environment dependent
-                raise RuntimeError(
+                raise ModelUnavailable(
                     "WASB-SBDT not available. Initialize the submodule under "
                     "engine/pbengine/third_party/WASB-SBDT and fetch weights via "
                     "scripts/download_weights.sh."

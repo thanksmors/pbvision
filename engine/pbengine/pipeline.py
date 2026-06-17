@@ -27,6 +27,7 @@ from pbengine.bounce.heuristic import detect_bounces
 from pbengine.court.court_model import side_of
 from pbengine.court.detector import CourtDetector
 from pbengine.detect.players import PlayerDetector
+from pbengine.errors import ModelUnavailable
 from pbengine.rally.segmentation import segment_rallies
 from pbengine.rally.serve import detect_serve
 from pbengine.rally.winner import determine_winner
@@ -70,18 +71,27 @@ def analyze_match(
     court_detector = court_detector or CourtDetector()
     player_detector = player_detector or PlayerDetector()
     ball_tracker = ball_tracker or BallTracker()
+    warnings: list[str] = []
 
     report("probe", 0.02)
     meta = probe(video_path)
 
+    # Each model-backed stage degrades gracefully: if its weights/deps are missing the stage is
+    # skipped (empty output + a warning) so the engine can run one model at a time.
     report("court", 0.1)
-    court_model, homography = _solve_court(video_path, court_detector)
+    court_model, homography = _skip_if_unavailable(
+        "court", warnings, (None, None), _solve_court, video_path, court_detector
+    )
 
     report("players", 0.3)
-    players = _track_players(video_path, homography, player_detector)
+    players = _skip_if_unavailable(
+        "players", warnings, [], _track_players, video_path, homography, player_detector
+    )
 
     report("ball", 0.6)
-    ball = ball_tracker.track(video_path, homography=homography, stride=stride)
+    ball = _skip_if_unavailable(
+        "ball", warnings, [], ball_tracker.track, video_path, homography=homography, stride=stride
+    )
 
     report("rallies", 0.85)
     points = _build_points(ball, meta.fps)
@@ -93,12 +103,22 @@ def analyze_match(
         points=points,
         players=players,
         engine=EngineInfo(version=ENGINE_VERSION, models=_MODELS),
+        warnings=warnings,
     )
 
     if out_path is not None:
         Path(out_path).write_text(result.model_dump_json(indent=2))
     report("done", 1.0)
     return result
+
+
+def _skip_if_unavailable(stage, warnings, fallback, fn, *args, **kwargs):
+    """Run ``fn``; if its model isn't installed, record a warning and return ``fallback``."""
+    try:
+        return fn(*args, **kwargs)
+    except ModelUnavailable as exc:
+        warnings.append(f"{stage}: {exc}")
+        return fallback
 
 
 def _solve_court(
@@ -131,7 +151,9 @@ def _track_players(
         court_xy = (0.0, 0.0)
         if homography is not None:
             court_xy = tuple(project(homography, t.foot_px)[0])
-        by_id[t.track_id].append(PlayerPosition(frame=t.frame, court_xy=court_xy))
+        by_id[t.track_id].append(
+            PlayerPosition(frame=t.frame, court_xy=court_xy, bbox_px=t.bbox_px)
+        )
         if homography is not None:
             side_votes[t.track_id].append(side_of(court_xy))
 
@@ -190,6 +212,17 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="run with scripted synthetic detectors (no ML); generates the video if missing",
     )
+    parser.add_argument(
+        "--players-weights",
+        default="yolo26m.pt",
+        help="Ultralytics weights for player tracking (use yolo26n.pt on CPU)",
+    )
+    parser.add_argument(
+        "--vid-stride",
+        type=int,
+        default=1,
+        help="process every Nth video frame for player tracking (speeds up CPU runs)",
+    )
     args = parser.parse_args(argv)
 
     status_path = Path(args.status) if args.status else None
@@ -208,6 +241,14 @@ def main(argv: list[str] | None = None) -> int:
             "player_detector": players,
             "ball_tracker": ball,
         }
+    else:
+        # Real run: configure the player detector for the chosen weights / stride. Court and
+        # ball default to their real (lazy) detectors and skip gracefully if not installed.
+        injected = {
+            "player_detector": PlayerDetector(
+                weights=args.players_weights, vid_stride=args.vid_stride
+            )
+        }
 
     def cb(stage: str, pct: float) -> None:
         print(f"[{pct:5.0%}] {stage}", flush=True)
@@ -216,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
             _write_status(status_path, args.job_id, state, stage, pct)
 
     try:
-        analyze_match(
+        result = analyze_match(
             args.video, out_path=args.out, status_cb=cb, stride=args.stride, **injected
         )
     except Exception as exc:  # surface failures to the status file for the API
@@ -227,7 +268,11 @@ def main(argv: list[str] | None = None) -> int:
                 ).model_dump_json()
             )
         raise
-    print(f"wrote {args.out}")
+    for w in result.warnings:
+        print(f"  [skipped] {w}", flush=True)
+    print(
+        f"wrote {args.out} — {len(result.points)} points, {len(result.players)} player tracks"
+    )
     return 0
 
 

@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 Px = tuple[float, float]
 CourtXY = tuple[float, float]
+BBox = tuple[float, float, float, float]  # x1, y1, x2, y2 in source pixels
 
 
 class Team(str, Enum):
@@ -77,6 +78,7 @@ class BallSample(BaseModel):
 class PlayerPosition(BaseModel):
     frame: int
     court_xy: CourtXY
+    bbox_px: BBox | None = Field(None, description="source-pixel bbox for the viewer overlay")
 
 
 class Player(BaseModel):
@@ -116,6 +118,9 @@ class MatchResult(BaseModel):
     points: list[Point] = Field(default_factory=list)
     players: list[Player] = Field(default_factory=list)
     engine: EngineInfo = Field(default_factory=EngineInfo)
+    warnings: list[str] = Field(
+        default_factory=list, description="stages skipped because their model was unavailable"
+    )
 
 
 class JobStatus(BaseModel):

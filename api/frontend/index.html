@@ -86,7 +86,9 @@ async function showResult(jobId) {
   const v = $("video");
   v.src = `/api/matches/${jobId}/video`;
   v.onloadedmetadata = sizeOverlay;
-  v.ontimeupdate = () => { if (ACTIVE >= 0) drawPoint(ACTIVE); };
+  v.ontimeupdate = () => drawPoint(ACTIVE);
+  if (MATCH.warnings && MATCH.warnings.length)
+    $("hint").textContent = "Skipped (model not installed): " + MATCH.warnings.map(w => w.split(":")[0]).join(", ");
   renderPoints();
 }
 
@@ -130,9 +132,35 @@ function toCanvas(px, c) {
   return [px[0] / MATCH.video.width * c.width, px[1] / MATCH.video.height * c.height];
 }
 
+// Nearest player box per track to a given frame (players may be sampled with a stride).
+function drawPlayers(ctx, c, frame) {
+  if (!MATCH.players) return;
+  ctx.lineWidth = 2;
+  ctx.font = "12px system-ui";
+  for (const pl of MATCH.players) {
+    let best = null, bestD = Infinity;
+    for (const pos of pl.positions) {
+      if (!pos.bbox_px) continue;
+      const d = Math.abs(pos.frame - frame);
+      if (d < bestD) { bestD = d; best = pos; }
+    }
+    if (!best || bestD > 15) continue; // don't draw a stale box far from the current frame
+    const [x1, y1] = toCanvas([best.bbox_px[0], best.bbox_px[1]], c);
+    const [x2, y2] = toCanvas([best.bbox_px[2], best.bbox_px[3]], c);
+    ctx.strokeStyle = "rgba(80,220,120,.95)";
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    ctx.fillStyle = "rgba(80,220,120,.95)";
+    const label = `#${pl.track_id}` + (pl.team ? ` (${pl.team})` : "");
+    ctx.fillText(label, x1 + 2, Math.max(12, y1 - 3));
+  }
+}
+
 function drawPoint(i) {
   const c = $("overlay"), ctx = c.getContext("2d");
   ctx.clearRect(0, 0, c.width, c.height);
+
+  const fps = MATCH.video.fps || 30;
+  drawPlayers(ctx, c, $("video").currentTime * fps);
 
   // Court outline from the first four keypoints (corners), if present.
   const kp = MATCH.court && MATCH.court.keypoints_px;
@@ -148,6 +176,8 @@ function drawPoint(i) {
     ctx.closePath();
     ctx.stroke();
   }
+
+  if (i < 0 || !MATCH.points[i]) return; // players-only run: nothing more to draw
 
   // Ball trajectory for the active point.
   const traj = MATCH.points[i].ball_trajectory;
