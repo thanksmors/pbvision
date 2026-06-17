@@ -32,7 +32,7 @@ probe → court homography → player tracking → ball tracking
 | Stage | Tooling | Status |
 |---|---|---|
 | Players | Ultralytics **YOLO26** + ByteTrack (`detect/players.py`) | ✅ wired + validated |
-| Court | **TennisCourtDetector** (4 outer corners) → homography (`court/`) | ✅ wired (needs weights) |
+| Court | Auto: **TennisCourtDetector**; reliable fallback: **manual 4-corner calibration** (`court/`) | ✅ manual works; auto weak on pickleball |
 | Ball | **WASB-SBDT** + jump gating + Kalman smoothing (`ball/`) — highest-risk stage | ⏳ stub |
 | Rally / serve / winner | Heuristics on the rectified trajectory (`rally/`) | ✅ logic done |
 
@@ -51,9 +51,10 @@ git submodule update --init         # vendored TennisCourtDetector
 pbengine clip.mp4 -o result.json --players-weights yolo26m.pt --vid-stride 1
 ```
 
-> The court net is **tennis-trained**: it localizes the four outer court corners, which we map
-> to the normalized pickleball court. Accuracy on pickleball footage is the open question of
-> the automatic approach — a manual 4-corner override / pickleball fine-tune is the fallback.
+> The court net is **tennis-trained** and in practice localizes a pickleball court poorly
+> (often 0/4 corners). The reliable path is **manual calibration**: in the viewer, click
+> *📐 Calibrate court*, click the four court corners on the first frame, and Save & re-analyze.
+> Since the camera is static, this is a one-time step and gives an exact homography.
 
 ## Quickstart
 

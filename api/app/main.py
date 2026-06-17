@@ -52,6 +52,25 @@ def match_video(job_id: str) -> FileResponse:
     return FileResponse(path, media_type="video/mp4")
 
 
+@app.get("/api/matches/{job_id}/frame")
+def match_frame(job_id: str) -> Response:
+    """First frame as JPEG, for the manual court-calibration UI."""
+    jpeg = jobs.first_frame_jpeg(job_id)
+    if jpeg is None:
+        raise HTTPException(status_code=404, detail="frame unavailable")
+    return Response(content=jpeg, media_type="image/jpeg")
+
+
+@app.post("/api/matches/{job_id}/court")
+def calibrate_court(job_id: str, corners: list[list[float]]) -> dict[str, str]:
+    """Save 4 ordered corner clicks and re-run analysis using the manual homography."""
+    if len(corners) != 4:
+        raise HTTPException(status_code=400, detail="need exactly 4 corner points")
+    jobs.save_corners(job_id, corners)
+    jobs.start_job(job_id)
+    return {"job_id": job_id}
+
+
 @app.get("/api/jobs/{job_id}")
 def job_status(job_id: str) -> JSONResponse:
     return JSONResponse(jobs.read_status(job_id).model_dump())

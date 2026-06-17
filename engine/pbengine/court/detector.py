@@ -18,6 +18,7 @@ rest of the engine runs without the ``ml`` extra.
 
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -135,3 +136,40 @@ class CourtDetector:
         if len(named) < 4:
             raise CourtNotFound(f"only {len(named)}/4 court corners localized")
         return homography_from_named_points(named)
+
+
+# Order in which the calibration UI collects clicks -> reference-point names.
+CORNER_ORDER = ("corner_a_left", "corner_a_right", "corner_b_left", "corner_b_right")
+
+
+@dataclass
+class ManualCourtDetector:
+    """Court geometry from four manually-clicked corners (no model).
+
+    The reliable fallback when automatic detection doesn't transfer. Since the camera is
+    static, the user calibrates once and the same corners drive the whole match. Shares the
+    ``detect``/``solve`` interface with :class:`CourtDetector` so it drops into the pipeline.
+    """
+
+    corners: dict[str, tuple[float, float]]
+
+    def detect(self, frame=None) -> dict[str, tuple[float, float]]:  # noqa: ARG002
+        return dict(self.corners)
+
+    def solve(self, frame=None) -> np.ndarray:  # noqa: ARG002
+        if len(self.corners) < 4:
+            raise CourtNotFound(f"only {len(self.corners)}/4 corners provided")
+        return homography_from_named_points(self.corners)
+
+
+def load_corners(path: str | Path) -> dict[str, tuple[float, float]]:
+    """Load a ``{name: [x, y]}`` corners file (written by the calibration UI)."""
+    data = json.loads(Path(path).read_text())
+    return {name: (float(xy[0]), float(xy[1])) for name, xy in data.items()}
+
+
+def corners_from_clicks(points: list[tuple[float, float]]) -> dict[str, tuple[float, float]]:
+    """Map four ordered click points to named pickleball corners (see ``CORNER_ORDER``)."""
+    if len(points) != 4:
+        raise ValueError(f"expected 4 corner clicks, got {len(points)}")
+    return {name: (float(x), float(y)) for name, (x, y) in zip(CORNER_ORDER, points)}

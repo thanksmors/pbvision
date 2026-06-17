@@ -8,6 +8,7 @@ later only touches this module.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -58,6 +59,9 @@ def start_job(job_id: str, fixture: bool = False) -> None:
     """
     d = job_dir(job_id)
     video = next(d.glob("input.*"))
+    # Reset status before (re-)launching so a stale "done" from a prior run can't be read as
+    # this run's result (e.g. when re-analyzing after calibration).
+    _write_status(job_id, JobStatus(job_id=job_id, state="pending"))
     cmd = [
         sys.executable,
         "-m",
@@ -79,12 +83,39 @@ def start_job(job_id: str, fixture: bool = False) -> None:
             "--vid-stride",
             os.environ.get("PBV_VID_STRIDE", "3"),
         ]
+        corners = d / "court.json"
+        if corners.exists():  # manual calibration overrides auto court detection
+            cmd += ["--court-corners", str(corners)]
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def video_path(job_id: str) -> Path | None:
     """Path to the job's source video, if present (for the viewer's ``<video>`` element)."""
     return next(job_dir(job_id).glob("input.*"), None)
+
+
+def first_frame_jpeg(job_id: str) -> bytes | None:
+    """Encode the job video's first frame as JPEG for the calibration UI."""
+    import cv2
+
+    path = video_path(job_id)
+    if path is None:
+        return None
+    cap = cv2.VideoCapture(str(path))
+    ok, frame = cap.read()
+    cap.release()
+    if not ok:
+        return None
+    ok, buf = cv2.imencode(".jpg", frame)
+    return buf.tobytes() if ok else None
+
+
+def save_corners(job_id: str, ordered_points: list[list[float]]) -> None:
+    """Persist 4 ordered corner clicks as a named court.json the engine can consume."""
+    from pbengine.court.detector import corners_from_clicks
+
+    named = corners_from_clicks([(p[0], p[1]) for p in ordered_points])
+    (job_dir(job_id) / "court.json").write_text(json.dumps(named))
 
 
 def read_status(job_id: str) -> JobStatus:

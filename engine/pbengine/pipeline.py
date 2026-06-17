@@ -228,6 +228,10 @@ def main(argv: list[str] | None = None) -> int:
         default=1,
         help="process every Nth video frame for player tracking (speeds up CPU runs)",
     )
+    parser.add_argument(
+        "--court-corners",
+        help="JSON file of 4 manually-clicked court corners; bypasses auto court detection",
+    )
     args = parser.parse_args(argv)
 
     status_path = Path(args.status) if args.status else None
@@ -254,6 +258,11 @@ def main(argv: list[str] | None = None) -> int:
                 weights=args.players_weights, vid_stride=args.vid_stride
             )
         }
+        # Manual court calibration overrides automatic detection when corners were provided.
+        if args.court_corners:
+            from pbengine.court.detector import ManualCourtDetector, load_corners
+
+            injected["court_detector"] = ManualCourtDetector(load_corners(args.court_corners))
 
     def cb(stage: str, pct: float) -> None:
         print(f"[{pct:5.0%}] {stage}", flush=True)

@@ -44,6 +44,18 @@
 
   <div id="results" class="card" style="display:none;">
     <div id="status" class="status"></div>
+    <button id="calibrate">📐 Calibrate court</button>
+
+    <div id="calibration" style="display:none; margin-top:1rem;">
+      <div id="calMsg" class="muted"></div>
+      <canvas id="calCanvas" style="max-width:100%; border:1px solid #ccc; cursor:crosshair;"></canvas>
+      <div style="margin-top:.5rem;">
+        <button id="calReset">Reset</button>
+        <button id="calSave" class="primary" disabled>Save &amp; re-analyze</button>
+        <button id="calCancel">Cancel</button>
+      </div>
+    </div>
+
     <div class="stage-wrap">
       <video id="video" controls playsinline></video>
       <canvas id="overlay"></canvas>
@@ -87,6 +99,7 @@ async function poll(jobId) {
 }
 
 async function showResult(jobId) {
+  JOB = jobId;
   MATCH = await (await fetch(`/api/matches/${jobId}`)).json();
   $("results").style.display = "block";
   renderStatus();
@@ -152,6 +165,82 @@ function renderPoints() {
     div.onclick = () => selectPoint(i);
     box.appendChild(div);
   });
+}
+
+// ---- Manual court calibration: click 4 corners on the first frame ----
+let JOB = null, calImg = null, calCorners = [], calScale = 1;
+const CAL_PROMPTS = [
+  "1/4 — click the FAR baseline, LEFT corner",
+  "2/4 — click the FAR baseline, RIGHT corner",
+  "3/4 — click the NEAR baseline, LEFT corner",
+  "4/4 — click the NEAR baseline, RIGHT corner",
+];
+
+$("calibrate").onclick = () => {
+  $("calibration").style.display = "block";
+  calCorners = [];
+  $("calSave").disabled = true;
+  calImg = new Image();
+  calImg.onload = () => {
+    const c = $("calCanvas");
+    const maxW = Math.min(720, c.parentElement.clientWidth);
+    calScale = maxW / calImg.naturalWidth;          // source px -> canvas px
+    c.width = maxW;
+    c.height = Math.round(calImg.naturalHeight * calScale);
+    drawCal();
+  };
+  calImg.src = `/api/matches/${JOB}/frame?t=` + Date.now();
+};
+
+$("calCanvas").onclick = (e) => {
+  if (calCorners.length >= 4) return;
+  const r = $("calCanvas").getBoundingClientRect();
+  // Click in canvas px -> source px (divide by scale).
+  const x = (e.clientX - r.left) / calScale;
+  const y = (e.clientY - r.top) / calScale;
+  calCorners.push([x, y]);
+  $("calSave").disabled = calCorners.length !== 4;
+  drawCal();
+};
+
+$("calReset").onclick = () => { calCorners = []; $("calSave").disabled = true; drawCal(); };
+$("calCancel").onclick = () => { $("calibration").style.display = "none"; };
+
+$("calSave").onclick = async () => {
+  $("calMsg").textContent = "Saving corners and re-analyzing…";
+  await fetch(`/api/matches/${JOB}/court`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(calCorners),
+  });
+  $("calibration").style.display = "none";
+  startPolling(JOB);
+};
+
+function drawCal() {
+  const c = $("calCanvas"), ctx = c.getContext("2d");
+  ctx.drawImage(calImg, 0, 0, c.width, c.height);
+  ctx.fillStyle = "rgba(255,40,200,.95)";
+  ctx.strokeStyle = "rgba(255,40,200,.95)";
+  ctx.lineWidth = 2;
+  ctx.font = "14px system-ui";
+  calCorners.forEach((p, i) => {
+    const x = p[0] * calScale, y = p[1] * calScale;
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillText(String(i + 1), x + 7, y - 7);
+  });
+  if (calCorners.length === 4) {
+    const ord = [0, 1, 3, 2];
+    ctx.beginPath();
+    ord.forEach((k, j) => {
+      const x = calCorners[k][0] * calScale, y = calCorners[k][1] * calScale;
+      j === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.closePath(); ctx.stroke();
+  }
+  $("calMsg").textContent = calCorners.length < 4
+    ? CAL_PROMPTS[calCorners.length]
+    : "All 4 corners set — Save & re-analyze, or Reset to redo.";
 }
 
 function selectPoint(i) {
