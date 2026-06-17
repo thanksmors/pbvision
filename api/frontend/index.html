@@ -103,7 +103,16 @@ window.addEventListener("resize", sizeOverlay);
 function renderPoints() {
   const box = $("points");
   box.innerHTML = "";
-  if (!MATCH.points.length) { box.innerHTML = '<p class="muted">No points detected.</p>'; return; }
+  if (!MATCH.points.length) {
+    const nPlayers = (MATCH.players || []).length;
+    if (nPlayers) {
+      box.innerHTML = `<p class="muted">Tracking ${nPlayers} players (green boxes on the video).
+        Points / serves / winners need the <b>ball</b> model, which isn't wired yet — that's the next stage.</p>`;
+    } else {
+      box.innerHTML = '<p class="muted">No detections. Is the <code>ml</code> extra installed? See the skipped-stages note above.</p>';
+    }
+    return;
+  }
   MATCH.points.forEach((p, i) => {
     const div = document.createElement("div");
     div.className = "point" + (i === ACTIVE ? " active" : "");

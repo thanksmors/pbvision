@@ -8,6 +8,7 @@ later only touches this module.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import uuid
@@ -50,6 +51,10 @@ def start_job(job_id: str, fixture: bool = False) -> None:
 
     ``fixture=True`` runs the pipeline with scripted synthetic detectors (no ML), used by the
     demo so the full flow works on a CPU-only box with nothing but the core deps installed.
+
+    Real uploads default to CPU-friendly player tracking (nano weights + frame striding) so a
+    run actually finishes on a laptop; override via ``PBV_PLAYERS_WEIGHTS`` / ``PBV_VID_STRIDE``
+    (e.g. ``yolo26m.pt`` and ``1`` on a GPU box).
     """
     d = job_dir(job_id)
     video = next(d.glob("input.*"))
@@ -67,6 +72,13 @@ def start_job(job_id: str, fixture: bool = False) -> None:
     ]
     if fixture:
         cmd.append("--fixture")
+    else:
+        cmd += [
+            "--players-weights",
+            os.environ.get("PBV_PLAYERS_WEIGHTS", "yolo26n.pt"),
+            "--vid-stride",
+            os.environ.get("PBV_VID_STRIDE", "3"),
+        ]
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
