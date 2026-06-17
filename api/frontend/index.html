@@ -21,6 +21,11 @@
     .review { background: #fee; }
     .win { font-weight: 600; }
     .muted { color: #888; font-size: .85rem; }
+    .status { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .8rem; }
+    .stage { font-size: .8rem; padding: .25rem .6rem; border-radius: 6px; border: 1px solid #ddd; }
+    .stage.ok { background: #eafaef; border-color: #9d9; }
+    .stage.skip { background: #fde7e7; border-color: #e99; }
+    .stage b { font-weight: 600; }
   </style>
 </head>
 <body>
@@ -38,6 +43,7 @@
   </div>
 
   <div id="results" class="card" style="display:none;">
+    <div id="status" class="status"></div>
     <div class="stage-wrap">
       <video id="video" controls playsinline></video>
       <canvas id="overlay"></canvas>
@@ -83,20 +89,40 @@ async function poll(jobId) {
 async function showResult(jobId) {
   MATCH = await (await fetch(`/api/matches/${jobId}`)).json();
   $("results").style.display = "block";
+  renderStatus();
   const v = $("video");
   v.src = `/api/matches/${jobId}/video`;
-  v.onloadedmetadata = sizeOverlay;
-  v.ontimeupdate = () => drawPoint(ACTIVE);
-  if (MATCH.warnings && MATCH.warnings.length)
-    $("hint").textContent = "Skipped (model not installed): " + MATCH.warnings.map(w => w.split(":")[0]).join(", ");
+  // Keep the overlay drawn whether the video is playing, paused, or seeked.
+  v.onloadedmetadata = () => { sizeOverlay(); drawPoint(ACTIVE); };
+  v.ontimeupdate = v.onseeked = v.onplay = () => drawPoint(ACTIVE);
   renderPoints();
+}
+
+// Per-stage status so it's obvious what ran vs. was skipped (and why).
+function renderStatus() {
+  const warnOf = (stage) =>
+    (MATCH.warnings || []).find((w) => w.startsWith(stage + ":"));
+  const corners = MATCH.court ? (MATCH.court.keypoints_px || []).length : 0;
+  const stages = [
+    { name: "Players", ok: (MATCH.players || []).length > 0,
+      okText: `${(MATCH.players || []).length} tracked`, warn: warnOf("players") },
+    { name: "Court", ok: !!MATCH.court,
+      okText: `${corners} corners → homography`, warn: warnOf("court") },
+    { name: "Ball / points", ok: (MATCH.points || []).length > 0,
+      okText: `${(MATCH.points || []).length} points`, warn: warnOf("ball") },
+  ];
+  $("status").innerHTML = stages.map((s) => {
+    const cls = s.ok ? "ok" : "skip";
+    const detail = s.ok ? s.okText : (s.warn ? s.warn.split(":").slice(1).join(":").trim() : "not detected");
+    return `<span class="stage ${cls}"><b>${s.name}:</b> ${s.ok ? "✓ " : "✗ "}${detail}</span>`;
+  }).join("");
 }
 
 function sizeOverlay() {
   const v = $("video"), c = $("overlay");
   c.width = v.clientWidth;
   c.height = v.clientHeight;
-  if (ACTIVE >= 0) drawPoint(ACTIVE);
+  drawPoint(ACTIVE);   // draw court + players even with no point selected / video paused
 }
 window.addEventListener("resize", sizeOverlay);
 
@@ -171,12 +197,12 @@ function drawPoint(i) {
   const fps = MATCH.video.fps || 30;
   drawPlayers(ctx, c, $("video").currentTime * fps);
 
-  // Court outline from the first four keypoints (corners), if present.
+  // Court outline from the four detected corners (bright + thick so it shows on a real court).
   const kp = MATCH.court && MATCH.court.keypoints_px;
   if (kp && kp.length >= 4) {
     const order = [0, 1, 3, 2]; // a_left, a_right, b_right, b_left
-    ctx.strokeStyle = "rgba(255,255,255,.8)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255,40,200,.95)";
+    ctx.lineWidth = 3;
     ctx.beginPath();
     order.forEach((k, j) => {
       const [x, y] = toCanvas(kp[k], c);
@@ -184,6 +210,14 @@ function drawPoint(i) {
     });
     ctx.closePath();
     ctx.stroke();
+    // Corner dots so a misdetected corner is obvious.
+    ctx.fillStyle = "rgba(255,40,200,.95)";
+    for (const k of order) {
+      const [x, y] = toCanvas(kp[k], c);
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, 2 * Math.PI);
+      ctx.fill();
+    }
   }
 
   if (i < 0 || !MATCH.points[i]) return; // players-only run: nothing more to draw
