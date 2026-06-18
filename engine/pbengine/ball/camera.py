@@ -96,30 +96,42 @@ def recover_camera(
     denom = float(a @ a)
     s = float(a @ rhs) / denom if denom > 1e-20 else -1.0
     focal = float(1.0 / np.sqrt(s)) if s > 1e-12 else float(width)
+    # Single-image focal recovery is unstable; clamp to a plausible range (~14deg..90deg HFOV
+    # for this image width) and otherwise fall back to f = width rather than emit a wild value.
+    if not (0.3 * width <= focal <= 6.0 * width):
+        focal = float(width)
 
     k = np.array([[focal, 0.0, cx], [0.0, focal, cy], [0.0, 0.0, 1.0]])
     k_inv = np.linalg.inv(k)
 
-    # [r1 r2 t] = K^-1 G / lambda, with lambda fixed by ||r1|| = ||r2|| = 1.
+    # Decompose with a SINGLE homography scale ``lam`` so [r1 r2 t] stays exactly consistent with
+    # G: then the ground plane (Z=0) reprojects through P with *zero* error — the clicked court
+    # homography is honoured precisely, and only the out-of-plane (height) direction is estimated.
     m = k_inv @ g
-    lam = 2.0 / (np.linalg.norm(m[:, 0]) + np.linalg.norm(m[:, 1]))
-    r1, r2, t = m[:, 0] * lam, m[:, 1] * lam, m[:, 2] * lam
-
-    # The court must sit in front of the camera; flip the scale sign if it came out behind.
-    center_depth = (np.array([r1, r2]).T @ np.array([WIDTH_FT / 2, LENGTH_FT / 2]))[2] + t[2]
-    if center_depth < 0:
-        r1, r2, t = -r1, -r2, -t
-
+    lam = float(np.sqrt(np.linalg.norm(m[:, 0]) * np.linalg.norm(m[:, 1])))
+    r1, r2, t = m[:, 0] / lam, m[:, 1] / lam, m[:, 2] / lam
+    mean_norm = 0.5 * (np.linalg.norm(r1) + np.linalg.norm(r2))
     r3 = np.cross(r1, r2)
-    # Closest orthonormal rotation to [r1 r2 r3] via SVD (the columns are only approximately so).
-    r_approx = np.column_stack([r1, r2, r3])
-    u, _, vh = np.linalg.svd(r_approx)
+    r3 = r3 / np.linalg.norm(r3) * mean_norm  # match the scale of the (slightly off-unit) r1, r2
+
+    # Build P from the EXACT ground columns of G plus a metric height column (K r3). This is what
+    # removes the old corner error: the ground columns are the homography itself, untouched.
+    proj = np.column_stack([g[:, 0], g[:, 1], lam * (k @ r3), g[:, 2]])
+
+    # Orient height so the implied camera centre sits *above* the court (Z up). Negating the
+    # height column mirrors the camera through the court plane, flipping its Z — see null(P).
+    _, _, vh = np.linalg.svd(proj)
+    center = vh[-1]
+    if abs(center[3]) > 1e-12 and center[2] / center[3] < 0:
+        proj[:, 2] *= -1
+        r3 = -r3
+
+    # Orthonormal R + t for reporting / depth(): closest rotation to the recovered columns.
+    u, _, vh = np.linalg.svd(np.column_stack([r1, r2, r3]))
     rot = u @ vh
     if np.linalg.det(rot) < 0:
         u[:, -1] *= -1
         rot = u @ vh
-
-    proj = k @ np.column_stack([rot, t])
 
     cam = CameraModel(
         P=proj, K=k, R=rot, t=t, focal_px=focal, reprojection_error_px=0.0

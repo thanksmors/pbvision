@@ -59,6 +59,25 @@ def test_recover_camera_matches_ground_truth():
     assert np.linalg.norm(_project(p_gt, pt) - cam.project(pt)) < 2.0
 
 
+def test_ground_plane_reprojection_is_exact_even_off_center():
+    """Corner (ground) reprojection must be ~0 for ANY valid homography, even when the real
+    camera violates the principal-point-at-centre assumption — the regression behind the
+    spurious "camera recovery unreliable (57px)" skip. The clicked homography is honoured exactly.
+    """
+    k = np.array([[1300.0, 0, W / 2 + 200], [0, 1300.0, H / 2 - 130], [0, 0, 1]])
+    cam_c = np.array([3.0, -18.0, 6.0])
+    fwd = np.array([12.0, 20.0, 0.0]) - cam_c
+    fwd /= np.linalg.norm(fwd)
+    right = np.cross(fwd, [0, 0, 1.0])
+    right /= np.linalg.norm(right)
+    down = np.cross(fwd, right)
+    rot = np.vstack([right, down, fwd])
+    p_gt = k @ np.column_stack([rot, -rot @ cam_c])
+
+    cam = recover_camera(_homography_from_camera(p_gt), W, H)
+    assert cam.reprojection_error_px < 1.0  # ground plane is exact regardless of focal error
+
+
 def test_reconstruct_recovers_parabola_position_and_speed():
     p_gt = _lookat_camera()
     cam = recover_camera(_homography_from_camera(p_gt), W, H)
