@@ -27,6 +27,11 @@
     .stage.skip { background: #fde7e7; border-color: #e99; }
     .stage b { font-weight: 600; }
   </style>
+  <script type="importmap">
+  {"imports":{
+    "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+  </script>
 </head>
 <body>
   <h1>🏓 pbvision</h1>
@@ -71,6 +76,15 @@
       <video id="video" controls playsinline></video>
       <canvas id="overlay"></canvas>
     </div>
+
+    <div id="panel3d" style="display:none; margin-top:1rem;">
+      <h2 style="font-size:1.05rem; margin-bottom:.2rem;">3D ball trajectory</h2>
+      <div class="muted" style="margin-bottom:.3rem;">drag = rotate · scroll = zoom · right-drag = pan ·
+        <span style="color:#3b82f6">slow</span>→<span style="color:#ef4444">fast</span> ·
+        <span style="color:#9aa4af">interpolated</span> · <span style="color:#d4a72c">bounce</span></div>
+      <div id="view3d" style="width:100%; height:440px; border:1px solid #ddd; border-radius:6px; overflow:hidden; background:#0d1117;"></div>
+    </div>
+
     <h2 style="font-size:1.05rem; margin-bottom:.2rem;">Points</h2>
     <div class="muted" id="hint">Click a point to jump to it and draw its ball trajectory.</div>
     <div id="points"></div>
@@ -113,6 +127,7 @@ async function showResult(jobId) {
   JOB = jobId;
   MATCH = await (await fetch(`/api/matches/${jobId}`)).json();
   $("results").style.display = "block";
+  $("panel3d").style.display = "none";   // shown when a point with 3D data is selected
   renderStatus();
   const v = $("video");
   v.src = `/api/matches/${jobId}/video`;
@@ -358,6 +373,15 @@ function selectPoint(i) {
   const fps = MATCH.video.fps || 30;
   $("video").currentTime = MATCH.points[i].start_frame / fps;
   drawPoint(i);
+  update3dPanel(i);
+}
+
+// Show the rotatable three.js view for the selected point (hidden when it has no 3D lift).
+function update3dPanel(i) {
+  const p = MATCH.points[i];
+  const has = !!p && (p.ball_trajectory || []).some((s) => s.world_ft);
+  $("panel3d").style.display = has ? "block" : "none";
+  if (has && window.render3d) window.render3d(p.ball_trajectory, p.bounces);
 }
 
 // Map a source-pixel coord onto the displayed (scaled) canvas.
@@ -479,6 +503,82 @@ function drawPoint(i) {
     }
   }
 }
+</script>
+
+<!-- Rotatable 3D ball view (three.js). Exposes window.render3d(trajectory, bounces), called by
+     update3dPanel() in the script above. Court is 20x44 ft; world_ft is (x across, y along, z up). -->
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const W = 20, L = 44;                    // pickleball court, feet
+let renderer, scene, cam, controls, dyn = [];
+const P = (x, y, z) => new THREE.Vector3(x - W / 2, z, y - L / 2);  // world -> three (z is up)
+
+function line(pts, color, opacity = 1) {
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  const m = new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity });
+  const o = new THREE.Line(g, m); scene.add(o); return o;
+}
+
+function init3d() {
+  const host = document.getElementById('view3d');
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setSize(host.clientWidth, host.clientHeight);
+  host.appendChild(renderer.domElement);
+  scene = new THREE.Scene(); scene.background = new THREE.Color(0x0d1117);
+  cam = new THREE.PerspectiveCamera(50, host.clientWidth / host.clientHeight, 0.1, 1000);
+  cam.position.set(L * 0.85, L * 0.6, L * 0.85);
+  controls = new OrbitControls(cam, renderer.domElement);
+  controls.enableDamping = true; controls.target.set(0, 2, 0);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  // Court outline, net (with height), kitchen lines, centre line.
+  line([P(0,0,0),P(W,0,0),P(W,L,0),P(0,L,0),P(0,0,0)], 0x6e7681);
+  line([P(0,L/2,0),P(W,L/2,0)], 0x8b949e);
+  line([P(0,L/2,2.83),P(W,L/2,2.83)], 0x8b949e, 0.7);
+  line([P(0,L/2,0),P(0,L/2,2.83)], 0x8b949e, 0.5);
+  line([P(W,L/2,0),P(W,L/2,2.83)], 0x8b949e, 0.5);
+  line([P(0,L/2-7,0),P(W,L/2-7,0)], 0x484f58);
+  line([P(0,L/2+7,0),P(W,L/2+7,0)], 0x484f58);
+  line([P(W/2,0,0),P(W/2,L/2-7,0)], 0x484f58);
+  line([P(W/2,L/2+7,0),P(W/2,L,0)], 0x484f58);
+  new ResizeObserver(() => {
+    if (!host.clientWidth) return;
+    cam.aspect = host.clientWidth / host.clientHeight; cam.updateProjectionMatrix();
+    renderer.setSize(host.clientWidth, host.clientHeight);
+  }).observe(host);
+  (function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, cam); })();
+}
+
+window.render3d = function (traj, bounces) {
+  if (!renderer) init3d();
+  for (const o of dyn) scene.remove(o);
+  dyn = [];
+  const cold = new THREE.Color(0x3b82f6), hot = new THREE.Color(0xef4444);
+  const pts = (traj || []).filter((s) => s.world_ft);
+  let maxmph = 1;
+  for (const s of pts) if (!s.interpolated && s.speed_mph) maxmph = Math.max(maxmph, s.speed_mph);
+  const path = pts.map((s) => P(s.world_ft[0], s.world_ft[1], s.world_ft[2]));
+  if (path.length > 1) dyn.push(line(path, 0x30363d, 0.6));
+  for (const s of pts) {
+    let col;
+    if (s.interpolated) col = new THREE.Color(0x9aa4af);
+    else col = cold.clone().lerp(hot, Math.min(1, (s.speed_mph || 0) / maxmph));
+    const r = s.interpolated ? 0.14 : 0.22;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12),
+      new THREE.MeshBasicMaterial({ color: col, transparent: s.interpolated, opacity: s.interpolated ? 0.5 : 1 }));
+    m.position.copy(P(s.world_ft[0], s.world_ft[1], s.world_ft[2]));
+    scene.add(m); dyn.push(m);
+  }
+  for (const b of (bounces || [])) {
+    if (!b.court_xy) continue;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xfbbf24 }));
+    m.position.copy(P(b.court_xy[0] * W, b.court_xy[1] * L, 0.02));
+    scene.add(m); dyn.push(m);
+  }
+};
 </script>
 </body>
 </html>
