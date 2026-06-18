@@ -144,7 +144,12 @@ class WasbBall:
         return self._torch.cat(ts, dim=0).unsqueeze(0).to(self._device)  # (1, 9, H, W)
 
     def infer_video(self, video_path: str) -> list[tuple[int, float, float, float]]:
-        """Return ``(frame, x, y, conf)`` ball detections in source-pixel coords."""
+        """Return ``(frame, x, y, conf)`` ball detections in source-pixel coords.
+
+        Frames are streamed in non-overlapping windows of ``_FRAMES_IN`` rather than decoded
+        all at once: a full clip in RAM is tens of GB (a 1080p frame is ~6 MB, so a few
+        minutes at 30 fps OOM-kills the process). Memory now stays flat regardless of length.
+        """
         import cv2
 
         torch = self._torch
@@ -152,16 +157,12 @@ class WasbBall:
         if not cap.isOpened():
             raise FileNotFoundError(f"cannot open video: {video_path}")
 
-        frames = []
-        ok, fr = cap.read()
-        while ok:
-            frames.append(fr)
-            ok, fr = cap.read()
-        cap.release()
-        if not frames:
+        ok, first = cap.read()
+        if not ok:
+            cap.release()
             return []
 
-        h, w = frames[0].shape[:2]
+        h, w = first.shape[:2]
         c = np.array([w / 2.0, h / 2.0], dtype=np.float32)
         s = max(h, w) * 1.0
         trans_in = self._get_affine(c, s, 0, [_MODEL_W, _MODEL_H], inv=0)
@@ -170,22 +171,36 @@ class WasbBall:
 
         self._tracker.refresh()
         raw: list[tuple[int, float, float, float]] = []
-        n = len(frames)
-        for start in range(0, n, _STEP):
-            window = [frames[min(start + k, n - 1)] for k in range(_FRAMES_IN)]
+        buf = [first]
+        start = 0
+        while buf:
+            while len(buf) < _FRAMES_IN:
+                ok, fr = cap.read()
+                if not ok:
+                    break
+                buf.append(fr)
+            n_real = len(buf)  # real (non-padded) frames in this window
+            window = [buf[min(k, n_real - 1)] for k in range(_FRAMES_IN)]
             imgs = self._preprocess(window, trans_in)
             with torch.no_grad():
                 preds = self._model(imgs)
             results = self._pp.run({0: preds[0]}, affine_mats)  # results[bid][eid][scale]
             for eid in sorted(results[0].keys()):
-                frame_idx = start + eid
                 dets = [
                     {"xy": xy, "score": sc}
                     for xy, sc in zip(results[0][eid][0]["xys"], results[0][eid][0]["scores"])
                 ]
                 out = self._tracker.update(dets)
-                if out["visi"] and frame_idx < n:
-                    raw.append((frame_idx, float(out["x"]), float(out["y"]), float(out["score"])))
+                if out["visi"] and eid < n_real:  # skip padded tail frames
+                    raw.append((start + eid, float(out["x"]), float(out["y"]), float(out["score"])))
+            if n_real < _FRAMES_IN:
+                break  # reached end of stream
+            start += _STEP
+            ok, fr = cap.read()  # seed the next non-overlapping window
+            if not ok:
+                break
+            buf = [fr]
+        cap.release()
 
         # Blob scores are unbounded; normalize to [0, 1] so they satisfy the BallSample schema.
         if raw:
