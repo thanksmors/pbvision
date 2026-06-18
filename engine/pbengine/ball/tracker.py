@@ -1,14 +1,13 @@
 """Ball detection + tracking — the highest-risk stage.
 
-Primary detector is WASB-SBDT (``nttcom/WASB-SBDT``, vendored under ``third_party/``), using
-its tennis/badminton weights as the pickleball starting point (ball size/speed sits between
-the two). ``AndrewDettor/TrackNet-Pickleball`` is a fallback weights source. Raw heatmap
-detections are gated for physically-impossible jumps and Kalman-smoothed (see
-:mod:`pbengine.ball.kalman`).
+Detector is WASB-SBDT (``nttcom/WASB-SBDT``, vendored under ``third_party/``), wrapped without
+its Hydra framework in :mod:`pbengine.ball.wasb`. Use its tennis or badminton weights as the
+pickleball starting point (ball size/speed sits between the two) — pickleball transfer is the
+known accuracy risk. Raw detections are gated for physically-impossible jumps and
+Kalman-smoothed (see :mod:`pbengine.ball.kalman`).
 
-The WASB import is lazy and lives behind :meth:`BallTracker.detect`, so the rest of the
-engine imports cleanly on a CPU box without the model. v1 development should spend most of
-its effort validating *this* module on real footage.
+The WASB import + model load are lazy, so the rest of the engine imports cleanly on a box
+without the ``ml`` extra. v1 effort should go into validating *this* stage on real footage.
 """
 
 from __future__ import annotations
@@ -20,33 +19,31 @@ import numpy as np
 
 from pbengine.ball.kalman import gate_jumps, smooth
 from pbengine.court.homography import project
-from pbengine.errors import ModelUnavailable
 from pbengine.schema.models import BallSample
+
+_DEFAULT_WEIGHTS = Path(__file__).resolve().parents[1] / "models" / "wasb_tennis_best.pth.tar"
 
 
 @dataclass
 class BallTracker:
-    weights: str = "wasb_tennis.pth.tar"
+    weights: str = str(_DEFAULT_WEIGHTS)
     max_px_per_frame: float = 150.0
+    device: str | None = None
     _model: object = field(default=None, repr=False)
 
     def _ensure_model(self) -> None:
         if self._model is None:
-            try:
-                # Vendored submodule; see scripts/download_weights.sh and third_party/.
-                from wasb_sbdt import load_default_model  # type: ignore
-            except ImportError as exc:  # pragma: no cover - environment dependent
-                raise ModelUnavailable(
-                    "WASB-SBDT not available. Initialize the submodule under "
-                    "engine/pbengine/third_party/WASB-SBDT and fetch weights via "
-                    "scripts/download_weights.sh."
-                ) from exc
-            self._model = load_default_model(self.weights)
+            from pbengine.ball.wasb import WasbBall  # lazy: pulls torch + the submodule
 
-    def _raw_detections(self, video_path: str | Path, stride: int) -> list[tuple[int, float, float, float]]:
-        """Return ``(frame, x, y, conf)`` heatmap detections from WASB. Lazy/model-backed."""
+            self._model = WasbBall(self.weights, device=self.device)
+
+    def _raw_detections(
+        self, video_path: str | Path, stride: int
+    ) -> list[tuple[int, float, float, float]]:
+        """Return ``(frame, x, y, conf)`` detections from WASB. WASB needs consecutive frames,
+        so ``stride`` is ignored here (kept for interface compatibility)."""
         self._ensure_model()
-        return self._model.infer_video(str(video_path), stride=stride)  # type: ignore[union-attr]
+        return self._model.infer_video(str(video_path))  # type: ignore[union-attr]
 
     def track(
         self,

@@ -1,3 +1,6 @@
 [submodule "engine/pbengine/third_party/TennisCourtDetector"]
 	path = engine/pbengine/third_party/TennisCourtDetector
 	url = https://github.com/yastrebksv/TennisCourtDetector
+[submodule "engine/pbengine/third_party/WASB-SBDT"]
+	path = engine/pbengine/third_party/WASB-SBDT
+	url = https://github.com/nttcom/WASB-SBDT

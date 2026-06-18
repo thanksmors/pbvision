@@ -24,6 +24,7 @@ ml = [
     "filterpy>=1.4.5",         # Kalman smoothing for the ball
     "av>=12.0",                # PyAV decode
     "gdown>=5.0",              # fetch court/ball weights from Google Drive
+    "pyyaml>=6.0",             # read the vendored WASB model config
 ]
 # Local API + thin viewer.
 api = [

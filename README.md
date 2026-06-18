@@ -33,7 +33,7 @@ probe → court homography → player tracking → ball tracking
 |---|---|---|
 | Players | Ultralytics **YOLO26** + ByteTrack (`detect/players.py`) | ✅ wired + validated |
 | Court | Auto: **TennisCourtDetector**; reliable fallback: **manual 4-corner calibration** (`court/`) | ✅ manual works; auto weak on pickleball |
-| Ball | **WASB-SBDT** + jump gating + Kalman smoothing (`ball/`) — highest-risk stage | ⏳ stub |
+| Ball | **WASB-SBDT** (Hydra-free wrapper) + jump gating + Kalman (`ball/`) — highest-risk stage | ✅ wired (needs weights); pickleball transfer unproven |
 | Rally / serve / winner | Heuristics on the rectified trajectory (`rally/`) | ✅ logic done |
 
 Each model-backed stage **degrades gracefully**: if its weights/deps are missing it's skipped
