@@ -126,17 +126,22 @@ def _solve_court(
     video_path: Path, detector: CourtDetector
 ) -> tuple[CourtModel | None, np.ndarray | None]:
     """Detect court corners on the first frame and solve a single homography for the shot."""
-    from pbengine.court.homography import homography_from_named_points
+    from pbengine.court.homography import homography_from_named_points, project
 
     for _idx, frame in iter_frames(video_path):
         named = detector.detect(frame)
         if len(named) < 4:
             raise CourtNotFound(f"only {len(named)}/4 court corners localized")
         homography = homography_from_named_points(named)
+        # Project the four canonical court corners back to pixels so the viewer can draw the
+        # full court — including corners that are off-screen (extrapolated from the homography).
+        inv = np.linalg.inv(homography)
+        quad = [tuple(map(float, project(inv, c)[0])) for c in ((0, 0), (1, 0), (1, 1), (0, 1))]
         return (
             CourtModel(
                 homography=homography.tolist(),
                 keypoints_px=list(named.values()),
+                court_quad_px=quad,
             ),
             homography,
         )

@@ -50,7 +50,12 @@ class CourtModel(BaseModel):
     """
 
     homography: list[list[float]] = Field(..., description="3x3 pixel->court_xy matrix")
-    keypoints_px: list[Px] = Field(default_factory=list, description="detected court points")
+    keypoints_px: list[Px] = Field(default_factory=list, description="clicked/detected court points")
+    court_quad_px: list[Px] = Field(
+        default_factory=list,
+        description="the 4 full-court corners projected to pixels (may fall outside the frame "
+        "when extrapolated) — lets the viewer draw the whole court even if a corner is clipped",
+    )
     model: str = "pickleball_doubles"
 
 

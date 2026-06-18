@@ -48,8 +48,18 @@
 
     <div id="calibration" style="display:none; margin-top:1rem;">
       <div id="calMsg" class="muted"></div>
-      <canvas id="calCanvas" style="max-width:100%; border:1px solid #ccc; cursor:crosshair;"></canvas>
+      <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-start;">
+        <div style="flex:none;">
+          <div class="muted" style="margin-bottom:.2rem;">1. pick a point</div>
+          <canvas id="calDiagram" width="190" height="340" style="border:1px solid #ccc; cursor:pointer;"></canvas>
+        </div>
+        <div style="flex:1; min-width:280px;">
+          <div class="muted" style="margin-bottom:.2rem;">2. click it on your video</div>
+          <canvas id="calCanvas" style="max-width:100%; border:1px solid #ccc; cursor:crosshair;"></canvas>
+        </div>
+      </div>
       <div style="margin-top:.5rem;">
+        <button id="calUndo">Undo last</button>
         <button id="calReset">Reset</button>
         <button id="calSave" class="primary" disabled>Save &amp; re-analyze</button>
         <button id="calCancel">Cancel</button>
@@ -167,80 +177,134 @@ function renderPoints() {
   });
 }
 
-// ---- Manual court calibration: click 4 corners on the first frame ----
-let JOB = null, calImg = null, calCorners = [], calScale = 1;
-const CAL_PROMPTS = [
-  "1/4 — click the FAR baseline, LEFT corner",
-  "2/4 — click the FAR baseline, RIGHT corner",
-  "3/4 — click the NEAR baseline, LEFT corner",
-  "4/4 — click the NEAR baseline, RIGHT corner",
-];
+// ---- Manual court calibration: click any 4+ visible court landmarks ----
+let JOB = null, calImg = null, calScale = 1;
+let LANDMARKS = null;                 // name -> [nx, ny] normalized court coords
+let armed = null;                     // landmark currently selected in the diagram
+let placed = {}, placedOrder = [];    // name -> [src_x, src_y] clicked on the frame
+const DGM_M = 18;                     // diagram margin (px)
 
-$("calibrate").onclick = () => {
+const LABELS = {
+  corner_a_left: "Far baseline · left corner", corner_a_right: "Far baseline · right corner",
+  corner_b_left: "Near baseline · left corner", corner_b_right: "Near baseline · right corner",
+  kitchen_a_left: "Far kitchen · left", kitchen_a_right: "Far kitchen · right",
+  kitchen_b_left: "Near kitchen · left", kitchen_b_right: "Near kitchen · right",
+  baseline_a_center: "Far baseline · center", baseline_b_center: "Near baseline · center",
+  kitchen_a_center: "Far kitchen · center", kitchen_b_center: "Near kitchen · center",
+  net_left: "Net · left sideline", net_right: "Net · right sideline",
+};
+
+$("calibrate").onclick = async () => {
+  if (!LANDMARKS) LANDMARKS = await (await fetch("/api/court-landmarks")).json();
   $("calibration").style.display = "block";
-  calCorners = [];
+  placed = {}; placedOrder = []; armed = null;
   $("calSave").disabled = true;
   calImg = new Image();
   calImg.onload = () => {
     const c = $("calCanvas");
-    const maxW = Math.min(720, c.parentElement.clientWidth);
-    calScale = maxW / calImg.naturalWidth;          // source px -> canvas px
+    const maxW = Math.min(640, c.parentElement.clientWidth);
+    calScale = maxW / calImg.naturalWidth;
     c.width = maxW;
     c.height = Math.round(calImg.naturalHeight * calScale);
-    drawCal();
+    drawDiagram(); drawCal();
   };
   calImg.src = `/api/matches/${JOB}/frame?t=` + Date.now();
 };
 
-$("calCanvas").onclick = (e) => {
-  if (calCorners.length >= 4) return;
-  const r = $("calCanvas").getBoundingClientRect();
-  // Click in canvas px -> source px (divide by scale).
-  const x = (e.clientX - r.left) / calScale;
-  const y = (e.clientY - r.top) / calScale;
-  calCorners.push([x, y]);
-  $("calSave").disabled = calCorners.length !== 4;
-  drawCal();
+function dgm(nx, ny) {
+  const c = $("calDiagram");
+  return [DGM_M + nx * (c.width - 2 * DGM_M), DGM_M + ny * (c.height - 2 * DGM_M)];
+}
+
+function drawDiagram() {
+  const c = $("calDiagram"), ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = "#eef6ee"; ctx.fillRect(0, 0, c.width, c.height);
+  const L = LANDMARKS;
+  const line = (a, b, color = "#888", wdt = 1.5) => {
+    ctx.strokeStyle = color; ctx.lineWidth = wdt; ctx.beginPath();
+    ctx.moveTo(...dgm(...L[a])); ctx.lineTo(...dgm(...L[b])); ctx.stroke();
+  };
+  // Court lines.
+  line("corner_a_left", "corner_a_right"); line("corner_b_left", "corner_b_right");
+  line("corner_a_left", "corner_b_left"); line("corner_a_right", "corner_b_right");
+  line("net_left", "net_right", "#39c", 2);
+  line("kitchen_a_left", "kitchen_a_right"); line("kitchen_b_left", "kitchen_b_right");
+  line("baseline_a_center", "kitchen_a_center"); line("baseline_b_center", "kitchen_b_center");
+  // Landmark dots: gray=available, blue=armed, green=placed.
+  for (const name in L) {
+    const [x, y] = dgm(...L[name]);
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, 2 * Math.PI);
+    ctx.fillStyle = placed[name] ? "#2b7" : (name === armed ? "#39f" : "#bbb");
+    ctx.fill();
+    if (name === armed) { ctx.strokeStyle = "#06c"; ctx.lineWidth = 2; ctx.stroke(); }
+  }
+}
+
+$("calDiagram").onclick = (e) => {
+  const r = $("calDiagram").getBoundingClientRect();
+  const cx = e.clientX - r.left, cy = e.clientY - r.top;
+  let best = null, bestD = 1e9;
+  for (const name in LANDMARKS) {
+    const [x, y] = dgm(...LANDMARKS[name]);
+    const d = Math.hypot(x - cx, y - cy);
+    if (d < bestD) { bestD = d; best = name; }
+  }
+  if (bestD <= 16) { armed = best; drawDiagram(); updateMsg(); }
 };
 
-$("calReset").onclick = () => { calCorners = []; $("calSave").disabled = true; drawCal(); };
+$("calCanvas").onclick = (e) => {
+  if (!armed) { updateMsg("Pick a point on the court diagram first."); return; }
+  const r = $("calCanvas").getBoundingClientRect();
+  const x = (e.clientX - r.left) / calScale, y = (e.clientY - r.top) / calScale;
+  if (!placed[armed]) placedOrder.push(armed);
+  placed[armed] = [x, y];
+  armed = null;
+  $("calSave").disabled = Object.keys(placed).length < 4;
+  drawDiagram(); drawCal(); updateMsg();
+};
+
+$("calUndo").onclick = () => {
+  const last = placedOrder.pop();
+  if (last) delete placed[last];
+  $("calSave").disabled = Object.keys(placed).length < 4;
+  drawDiagram(); drawCal(); updateMsg();
+};
+$("calReset").onclick = () => {
+  placed = {}; placedOrder = []; armed = null;
+  $("calSave").disabled = true; drawDiagram(); drawCal(); updateMsg();
+};
 $("calCancel").onclick = () => { $("calibration").style.display = "none"; };
 
 $("calSave").onclick = async () => {
-  $("calMsg").textContent = "Saving corners and re-analyzing…";
-  await fetch(`/api/matches/${JOB}/court`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(calCorners),
+  $("calMsg").textContent = "Saving calibration and re-analyzing…";
+  const res = await fetch(`/api/matches/${JOB}/court`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(placed),
   });
+  if (!res.ok) { updateMsg("Error: " + (await res.json()).detail); return; }
   $("calibration").style.display = "none";
   startPolling(JOB);
 };
+
+function updateMsg(override) {
+  const n = Object.keys(placed).length;
+  $("calMsg").textContent = override || (
+    armed ? `Now click "${LABELS[armed]}" on your video.` :
+    `${n} point${n === 1 ? "" : "s"} placed (need ≥4, spread out). Pick a point on the diagram, then click it on the video.`
+  );
+}
 
 function drawCal() {
   const c = $("calCanvas"), ctx = c.getContext("2d");
   ctx.drawImage(calImg, 0, 0, c.width, c.height);
   ctx.fillStyle = "rgba(255,40,200,.95)";
-  ctx.strokeStyle = "rgba(255,40,200,.95)";
-  ctx.lineWidth = 2;
-  ctx.font = "14px system-ui";
-  calCorners.forEach((p, i) => {
-    const x = p[0] * calScale, y = p[1] * calScale;
+  ctx.font = "12px system-ui";
+  for (const name in placed) {
+    const x = placed[name][0] * calScale, y = placed[name][1] * calScale;
     ctx.beginPath(); ctx.arc(x, y, 5, 0, 2 * Math.PI); ctx.fill();
-    ctx.fillText(String(i + 1), x + 7, y - 7);
-  });
-  if (calCorners.length === 4) {
-    const ord = [0, 1, 3, 2];
-    ctx.beginPath();
-    ord.forEach((k, j) => {
-      const x = calCorners[k][0] * calScale, y = calCorners[k][1] * calScale;
-      j === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    });
-    ctx.closePath(); ctx.stroke();
+    ctx.fillText(LABELS[name].split("·")[1].trim(), x + 7, y - 5);
   }
-  $("calMsg").textContent = calCorners.length < 4
-    ? CAL_PROMPTS[calCorners.length]
-    : "All 4 corners set — Save & re-analyze, or Reset to redo.";
 }
 
 function selectPoint(i) {
@@ -286,23 +350,22 @@ function drawPoint(i) {
   const fps = MATCH.video.fps || 30;
   drawPlayers(ctx, c, $("video").currentTime * fps);
 
-  // Court outline from the four detected corners (bright + thick so it shows on a real court).
-  const kp = MATCH.court && MATCH.court.keypoints_px;
-  if (kp && kp.length >= 4) {
-    const order = [0, 1, 3, 2]; // a_left, a_right, b_right, b_left
+  // Full court outline, projected through the homography (court_quad_px already in draw order:
+  // a_left, a_right, b_right, b_left) — shows the whole court even where a corner is off-frame.
+  const quad = MATCH.court && MATCH.court.court_quad_px;
+  if (quad && quad.length === 4) {
     ctx.strokeStyle = "rgba(255,40,200,.95)";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    order.forEach((k, j) => {
-      const [x, y] = toCanvas(kp[k], c);
+    quad.forEach((p, j) => {
+      const [x, y] = toCanvas(p, c);
       j === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.closePath();
     ctx.stroke();
-    // Corner dots so a misdetected corner is obvious.
     ctx.fillStyle = "rgba(255,40,200,.95)";
-    for (const k of order) {
-      const [x, y] = toCanvas(kp[k], c);
+    for (const p of quad) {
+      const [x, y] = toCanvas(p, c);
       ctx.beginPath();
       ctx.arc(x, y, 5, 0, 2 * Math.PI);
       ctx.fill();

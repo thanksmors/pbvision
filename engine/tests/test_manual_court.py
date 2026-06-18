@@ -42,6 +42,32 @@ def test_manual_detector_needs_four_corners():
         det.solve()
 
 
+def test_extrapolates_clipped_corner(tmp_path):
+    """Calibrating from non-corner landmarks still recovers an off-screen corner."""
+    from pbengine import fixtures
+    from pbengine.court.court_model import REFERENCE_POINTS
+    from pbengine.court.homography import project
+    from pbengine.pipeline import _solve_court
+
+    video = tmp_path / "demo.mp4"
+    fixtures.write_synthetic_video(video)
+    hinv = np.linalg.inv(fixtures.fixture_homography())
+
+    def px(name):
+        p = project(hinv, np.array(REFERENCE_POINTS[name]))[0]
+        return (float(p[0]), float(p[1]))
+
+    # Two far corners + two NEAR-kitchen points — the near baseline corners are NOT given.
+    named = {n: px(n) for n in
+             ("corner_a_left", "corner_a_right", "kitchen_b_left", "kitchen_b_right")}
+    model, _h = _solve_court(video, ManualCourtDetector(named))
+
+    assert model is not None and len(model.court_quad_px) == 4
+    # quad order is a_left, a_right, b_right, b_left — the last two were extrapolated.
+    assert np.allclose(model.court_quad_px[2], px("corner_b_right"), atol=1.0)
+    assert np.allclose(model.court_quad_px[3], px("corner_b_left"), atol=1.0)
+
+
 def test_load_corners_roundtrip(tmp_path):
     import json
 

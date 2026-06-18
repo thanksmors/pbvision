@@ -110,12 +110,22 @@ def first_frame_jpeg(job_id: str) -> bytes | None:
     return buf.tobytes() if ok else None
 
 
-def save_corners(job_id: str, ordered_points: list[list[float]]) -> None:
-    """Persist 4 ordered corner clicks as a named court.json the engine can consume."""
-    from pbengine.court.detector import corners_from_clicks
+def save_named_corners(job_id: str, named: dict[str, list[float]]) -> None:
+    """Validate and persist named court landmarks (>=4) as the engine's court.json.
 
-    named = corners_from_clicks([(p[0], p[1]) for p in ordered_points])
-    (job_dir(job_id) / "court.json").write_text(json.dumps(named))
+    Names must be known pickleball reference points (see ``court_model.REFERENCE_POINTS``);
+    any 4+ visible, well-spread ones are enough to solve the homography — they need not be the
+    outer corners, so a clipped corner doesn't block calibration.
+    """
+    from pbengine.court.court_model import REFERENCE_POINTS
+
+    unknown = [n for n in named if n not in REFERENCE_POINTS]
+    if unknown:
+        raise ValueError(f"unknown court landmarks: {unknown}")
+    if len(named) < 4:
+        raise ValueError(f"need >=4 landmarks, got {len(named)}")
+    clean = {n: [float(xy[0]), float(xy[1])] for n, xy in named.items()}
+    (job_dir(job_id) / "court.json").write_text(json.dumps(clean))
 
 
 def read_status(job_id: str) -> JobStatus:

@@ -62,13 +62,22 @@ def match_frame(job_id: str) -> Response:
 
 
 @app.post("/api/matches/{job_id}/court")
-def calibrate_court(job_id: str, corners: list[list[float]]) -> dict[str, str]:
-    """Save 4 ordered corner clicks and re-run analysis using the manual homography."""
-    if len(corners) != 4:
-        raise HTTPException(status_code=400, detail="need exactly 4 corner points")
-    jobs.save_corners(job_id, corners)
+def calibrate_court(job_id: str, landmarks: dict[str, list[float]]) -> dict[str, str]:
+    """Save >=4 named court landmarks and re-run analysis using the manual homography."""
+    try:
+        jobs.save_named_corners(job_id, landmarks)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     jobs.start_job(job_id)
     return {"job_id": job_id}
+
+
+@app.get("/api/court-landmarks")
+def court_landmarks() -> JSONResponse:
+    """The named pickleball reference landmarks (normalized court coords) for the UI diagram."""
+    from pbengine.court.court_model import REFERENCE_POINTS
+
+    return JSONResponse({name: list(xy) for name, xy in REFERENCE_POINTS.items()})
 
 
 @app.get("/api/jobs/{job_id}")
