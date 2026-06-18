@@ -4,7 +4,7 @@ Coverage % tells you how often the ball was found, not whether it locked onto th
 (vs. a shoe, a line, a bright spot). This draws each detection plus a short fading trail,
 so a few seconds of eyeballing settles it.
 
-    # defaults (tennis / score_threshold=0.3 / step=1)
+    # defaults (badminton / score_threshold=0.2 / step=1)
     python scripts/overlay_ball.py your_clip.mp4 [out.mp4]
 
     # render a specific config on just the first N frames (quick visual check of a sweep winner)
@@ -34,8 +34,8 @@ TRAIL = 12  # how many past points to fade behind the ball
 def main(
     video: str,
     out_path: str,
-    weights: str = "tennis",
-    score_threshold: float = 0.3,
+    weights: str = "badminton",
+    score_threshold: float = 0.2,
     step: int = 1,
     max_disp: float = 300.0,
     max_frames: int | None = None,
@@ -121,8 +121,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Render the WASB ball trajectory onto a clip.")
     ap.add_argument("video")
     ap.add_argument("out", nargs="?", help="output path (default: <video>_ball.mp4)")
-    ap.add_argument("--weights", default="tennis", help="'tennis', 'badminton', or a path")
-    ap.add_argument("--score-threshold", type=float, default=0.3)
+    ap.add_argument("--weights", default="badminton", help="'tennis', 'badminton', or a path")
+    ap.add_argument("--score-threshold", type=float, default=0.2)
     ap.add_argument("--step", type=int, default=1, help="window stride; 1=overlapping (3x compute)")
     ap.add_argument("--max-disp", type=float, default=300.0)
     ap.add_argument("--max-frames", type=int, default=None,

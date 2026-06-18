@@ -21,7 +21,10 @@ from pbengine.ball.kalman import gate_jumps, smooth
 from pbengine.court.homography import project
 from pbengine.schema.models import BallSample
 
-_DEFAULT_WEIGHTS = Path(__file__).resolve().parents[1] / "models" / "wasb_tennis_best.pth.tar"
+# Badminton weights + score_threshold=0.2 + step=1 won an empirical sweep on real pickleball
+# footage (scripts/debug_ball.py --sweep): ~61% raw coverage, edging tennis, and the overlay
+# confirmed the detections ride the ball. Swap weights/threshold per-clip if footage differs.
+_DEFAULT_WEIGHTS = Path(__file__).resolve().parents[1] / "models" / "wasb_badminton_best.pth.tar"
 
 
 @dataclass
@@ -29,9 +32,9 @@ class BallTracker:
     weights: str = str(_DEFAULT_WEIGHTS)
     max_px_per_frame: float = 150.0
     device: str | None = None
-    # WASB detector knobs (see pbengine.ball.wasb.WasbBall). Defaults favour recall: a lower blob
+    # WASB detector knobs (see pbengine.ball.wasb.WasbBall). Defaults favour recall: a low blob
     # threshold and overlapping windows (step=1) so each frame gets up to 3 detection attempts.
-    score_threshold: float = 0.3
+    score_threshold: float = 0.2
     max_disp: float = 300.0
     step: int = 1
     _model: object = field(default=None, repr=False)

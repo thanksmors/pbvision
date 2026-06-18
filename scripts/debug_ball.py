@@ -4,11 +4,11 @@ Tells you whether the ball model is actually finding the ball on your footage (t
 transfer question for a tennis/badminton-trained net), and lets you calibrate the detector knobs
 empirically:
 
-    # single run with the defaults (recall-tuned: step=1 overlapping windows, score_threshold=0.3)
+    # single run with the defaults (sweep-tuned: badminton, step=1 overlapping, score_threshold=0.2)
     python scripts/debug_ball.py clip.mp4
 
     # try specific settings
-    python scripts/debug_ball.py clip.mp4 --weights badminton --score-threshold 0.2 --step 1
+    python scripts/debug_ball.py clip.mp4 --weights tennis --score-threshold 0.3 --step 1
 
     # sweep a small grid (weights x thresholds x step) and print a coverage table to pick the best
     python scripts/debug_ball.py clip.mp4 --sweep
@@ -162,8 +162,8 @@ def sweep(video: str, max_disp: float, max_frames: int | None = None) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Report/tune WASB ball-detection coverage on a clip.")
     ap.add_argument("video")
-    ap.add_argument("--weights", default="tennis", help="'tennis', 'badminton', or a path")
-    ap.add_argument("--score-threshold", type=float, default=0.3)
+    ap.add_argument("--weights", default="badminton", help="'tennis', 'badminton', or a path")
+    ap.add_argument("--score-threshold", type=float, default=0.2)
     ap.add_argument("--step", type=int, default=1, help="window stride; 1=overlapping (3x compute)")
     ap.add_argument("--max-disp", type=float, default=300.0)
     ap.add_argument("--sweep", action="store_true", help="grid over weights/thresholds/steps")
