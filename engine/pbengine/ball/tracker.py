@@ -34,6 +34,9 @@ class BallTracker:
     device: str | None = None
     # WASB detector knobs (see pbengine.ball.wasb.WasbBall). Defaults favour recall: a low blob
     # threshold and overlapping windows (step=1) so each frame gets up to 3 detection attempts.
+    # Note: the per-segment robust parabola fit (pbengine.ball.trajectory3d) now rejects
+    # false-positive detections downstream, so raising this toward 0.3 admits fewer false positives
+    # at some recall cost — re-validate with scripts/debug_ball.py --sweep before changing it.
     score_threshold: float = 0.2
     max_disp: float = 300.0
     step: int = 1

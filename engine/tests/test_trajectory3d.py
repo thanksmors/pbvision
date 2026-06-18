@@ -14,8 +14,12 @@ from pbengine.ball.camera import recover_camera
 from pbengine.ball.trajectory3d import (
     G_FT,
     FT_PER_S_TO_MPH,
+    _Obs,
+    _fit_parabola,
+    _segment_bounds,
     fill_gaps_3d,
     reconstruct_3d,
+    reconstruct_3d_segments,
 )
 from pbengine.court.court_model import LENGTH_FT, WIDTH_FT
 from pbengine.court.homography import compute_homography
@@ -153,6 +157,103 @@ def test_fill_gaps_3d_respects_bounce_and_gap_limits():
     fills = {s.frame for s in out if s.interpolated}
     assert all(f not in fills for f in range(9, 20))  # wide gap is never bridged
     assert 5 not in fills  # a gap containing a bounce (contact) is skipped
+
+
+def test_segment_fit_rejects_outliers():
+    """A robust per-segment fit must drop scattered false positives and still recover a clean arc."""
+    p_gt = _lookat_camera()
+    cam = recover_camera(_homography_from_camera(p_gt), W, H)
+    fps = 30.0
+    p0, v0 = np.array([4.0, 8.0, 1.5]), np.array([3.0, 18.0, 9.0])
+
+    truth, samples = {}, []
+    for i in range(20):
+        pos, s = _parabola_sample(p_gt, p0, v0, i, fps)
+        truth[i] = pos
+        samples.append(s)
+    # Inject 3 gross false positives (off by ~300 px) at scattered frames.
+    outlier_frames = {5, 11, 16}
+    for f in outlier_frames:
+        bad = samples[f]
+        samples[f] = BallSample(frame=f, px=(bad.px[0] + 320.0, bad.px[1] - 280.0), conf=1.0)
+
+    out, flagged = reconstruct_3d_segments(samples, bounces=[], camera=cam, fps=fps)
+    assert outlier_frames <= flagged  # every injected outlier rejected
+    by = {s.frame: s for s in out}
+    for f in outlier_frames:
+        assert by[f].world_ft is None  # outliers are not lifted to 3D
+    # The surviving (true) frames still reconstruct the clean arc accurately.
+    clean = [s for s in out if s.frame not in outlier_frames and s.world_ft is not None]
+    assert len(clean) >= 14
+    for s in clean:
+        assert np.linalg.norm(np.array(s.world_ft) - truth[s.frame]) < 0.5
+
+
+def test_segment_boundaries_land_at_bounces():
+    """A provided bounce frame must split the track into two arcs (Z velocity reverses there)."""
+    p_gt = _lookat_camera()
+    cam = recover_camera(_homography_from_camera(p_gt), W, H)
+    fps = 30.0
+    samples = [_parabola_sample(p_gt, np.array([4.0, 8.0, 1.5]), np.array([3.0, 18.0, 9.0]),
+                                i, fps)[1] for i in range(16)]
+    frames = np.array([s.frame for s in samples])
+    segs = _segment_bounds(frames, samples, [8], cam.P, fps, max_gap=6, split_on_kinks=False)
+    assert len(segs) == 2
+    assert segs[0][1] == segs[1][0]  # contiguous split
+    assert int(frames[segs[1][0]]) == 8  # the bounce frame starts the second arc
+
+
+def test_paddle_hit_split():
+    """A mid-air velocity discontinuity (paddle hit) with NO bounce must still split via the kink
+    test — a single parabola cannot fit both arcs."""
+    p_gt = _lookat_camera()
+    cam = recover_camera(_homography_from_camera(p_gt), W, H)
+    fps = 30.0
+    samples, all_obs = [], []
+    p0a, v0a = np.array([4.0, 8.0, 2.0]), np.array([2.0, 16.0, 6.0])
+    # Arc 2 continues from arc 1's position at the hit but reverses horizontal velocity.
+    t_hit = 10 / fps
+    p_hit = p0a + v0a * t_hit + 0.5 * np.array([0, 0, -G_FT]) * t_hit * t_hit
+    v0b = np.array([2.0, -16.0, 7.0])
+    for i in range(20):
+        if i < 10:
+            pos = p0a + v0a * (i / fps) + 0.5 * np.array([0, 0, -G_FT]) * (i / fps) ** 2
+        else:
+            tt = (i - 10) / fps
+            pos = p_hit + v0b * tt + 0.5 * np.array([0, 0, -G_FT]) * tt * tt
+        px = _project(p_gt, pos.reshape(1, 3))[0]
+        samples.append(BallSample(frame=i, px=(float(px[0]), float(px[1])), conf=1.0))
+        all_obs.append(_Obs(i / fps, float(px[0]), float(px[1]), 1.0))
+
+    # A single whole-run parabola reprojects badly (the kink), but the split fixes it.
+    whole = _fit_parabola(all_obs, [], cam.P)
+    assert whole is not None and whole[1] > 12.0
+    frames = np.array([s.frame for s in samples])
+    segs = _segment_bounds(frames, samples, [], cam.P, fps, max_gap=6, split_on_kinks=True)
+    assert len(segs) >= 2
+    assert any(8 <= seg[1] <= 12 for seg in segs[:-1])  # a boundary lands at the hit
+
+
+def test_build_points_culls_outlier_from_trajectory():
+    """End-to-end through _build_points: a false-positive detection must not appear as a measured
+    sample, and any backfill at that frame must be flagged interpolated."""
+    from pbengine.pipeline import _build_points
+
+    p_gt = _lookat_camera()
+    cam = recover_camera(_homography_from_camera(p_gt), W, H)
+    fps = 30.0
+    p0, v0 = np.array([8.0, 10.0, 1.5]), np.array([1.0, 9.0, 7.0])
+    ball = [_parabola_sample(p_gt, p0, v0, i, fps)[1] for i in range(40)]  # > min rally length
+    bad = ball[20]
+    ball[20] = BallSample(frame=20, px=(bad.px[0] + 320.0, bad.px[1] - 260.0), conf=1.0)
+
+    points = _build_points(ball, fps, camera=cam)
+    assert len(points) == 1
+    by = {s.frame: s for s in points[0].ball_trajectory}
+    assert 20 in by  # backfilled for continuity...
+    assert by[20].interpolated is True  # ...but flagged a guess, never a measurement
+    measured = [s for s in points[0].ball_trajectory if not s.interpolated]
+    assert all(s.frame != 20 or s.interpolated for s in measured)
 
 
 def test_no_camera_or_short_track_is_safe():

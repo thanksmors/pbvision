@@ -215,13 +215,18 @@ def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point
         winner, reason, conf = determine_winner(bounces, measured)
         # The stored trajectory is enriched (3D) and gap-filled for a continuous overlay.
         if camera is not None:
-            from pbengine.ball.trajectory3d import fill_gaps_3d, reconstruct_3d
+            from pbengine.ball.trajectory3d import fill_gaps_3d, reconstruct_3d_segments
 
-            traj = fill_gaps_3d(reconstruct_3d(measured, bounces, camera, fps), bounces, camera, fps)
+            lifted, outlier_frames = reconstruct_3d_segments(measured, bounces, camera, fps)
+            # Cull false-positive detections (rejected by the per-segment parabola) from the stored
+            # track; fill_gaps_3d then backfills those frames from the same clean arc, flagged
+            # interpolated — so the overlay stays continuous and measured-only stats never see them.
+            clean = [s for s in lifted if s.frame not in outlier_frames]
+            traj = fill_gaps_3d(clean, bounces, camera, fps)
         else:
-            from pbengine.ball.trajectory3d import fill_gaps_2d_samples
+            from pbengine.ball.trajectory3d import clean_2d_samples
 
-            traj = fill_gaps_2d_samples(measured)
+            traj = clean_2d_samples(measured)
         points.append(
             Point(
                 point_index=i,

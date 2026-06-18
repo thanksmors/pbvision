@@ -1,6 +1,6 @@
 import numpy as np
 
-from pbengine.ball.kalman import fill_gaps_2d, gate_jumps, smooth
+from pbengine.ball.kalman import clean_track_2d, fill_gaps_2d, gate_jumps, smooth
 
 
 def test_gate_rejects_teleport():
@@ -27,6 +27,23 @@ def test_smooth_handles_gaps():
     out = smooth(frames, xy)
     assert out.shape == (5, 2)
     assert np.all(np.isfinite(out))
+
+
+def test_ransac_poly_rejects_scattered_fp():
+    """clean_track_2d keeps a smooth pixel arc and drops scattered false positives the gate misses."""
+    frames = np.arange(18)
+    t = frames.astype(float)
+    # A gentle pixel parabola (a projected arc), plus tiny noise.
+    xy = np.stack([400 + 12 * t, 600 + 20 * t - 1.2 * t * t], axis=1)
+    rng = np.random.default_rng(0)
+    xy += rng.normal(0, 1.0, xy.shape)
+    # Three false positives that are slow enough to survive gate_jumps but off the arc.
+    for f, off in ((4, (60, -55)), (9, (-50, 65)), (13, (58, 50))):
+        xy[f] += np.array(off)
+
+    keep = clean_track_2d(frames, xy, max_gap=6)
+    assert not keep[4] and not keep[9] and not keep[13]  # outliers rejected
+    assert keep.sum() >= 13  # the true arc is retained
 
 
 def test_fill_gaps_2d_fills_short_and_skips_long():

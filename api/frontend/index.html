@@ -135,6 +135,9 @@ async function showResult(jobId) {
   v.onloadedmetadata = () => { sizeOverlay(); drawPoint(ACTIVE); };
   v.ontimeupdate = v.onseeked = v.onplay = () => drawPoint(ACTIVE);
   renderPoints();
+  // Auto-select the first point so the ball is visible immediately (the bright ball overlay only
+  // draws for the selected point; players/court draw regardless).
+  if (MATCH.points && MATCH.points.length) selectPoint(0);
 }
 
 // 3D ball stats from a point's trajectory (filled when camera recovery succeeded). Returns
@@ -440,6 +443,21 @@ function drawPoint(i) {
       ctx.fill();
     }
   }
+
+  // Faint full-match ball track, so the ball reads even before a point is selected. The bright
+  // cyan for the selected point draws on top below.
+  ctx.strokeStyle = "rgba(0,200,255,.12)";
+  ctx.lineWidth = 1;
+  (MATCH.points || []).forEach((p) => {
+    const t = p.ball_trajectory;
+    if (!t || !t.length) return;
+    ctx.beginPath();
+    t.forEach((s, j) => {
+      const [x, y] = toCanvas(s.px, c);
+      j === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  });
 
   if (i < 0 || !MATCH.points[i]) return; // players-only run: nothing more to draw
 

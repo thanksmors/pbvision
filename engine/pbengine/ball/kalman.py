@@ -76,6 +76,76 @@ def smooth(frames: np.ndarray, xy: np.ndarray, process_var: float = 1.0,
     return out
 
 
+def _ransac_poly1d(t: np.ndarray, y: np.ndarray, *, inlier: float, iters: int,
+                   rng: np.random.Generator) -> np.ndarray:
+    """Boolean inlier mask for a robust degree-2 fit of ``y(t)`` (3 points determine a parabola)."""
+    n = len(t)
+    if n <= 3:
+        return np.ones(n, dtype=bool)
+    idx = np.arange(n)
+    best: tuple[int, np.ndarray] | None = None
+    for _ in range(iters):
+        pick = rng.choice(idx, size=3, replace=False)
+        try:
+            coef = np.polyfit(t[pick], y[pick], 2)
+        except (np.linalg.LinAlgError, ValueError):
+            continue
+        mask = np.abs(np.polyval(coef, t) - y) < inlier
+        cnt = int(mask.sum())
+        if best is None or cnt > best[0]:
+            best = (cnt, mask)
+    return best[1] if best is not None else np.ones(n, dtype=bool)
+
+
+def ransac_poly_segment(frames: np.ndarray, xy: np.ndarray, *, inlier_px: float = 12.0,
+                        iters: int = 60, rng: np.random.Generator | None = None) -> np.ndarray:
+    """Robustly fit ``x(t)``/``y(t)`` as degree-2 polynomials; return a per-point inlier mask.
+
+    A short ballistic arc projects to a roughly parabolic pixel path, so a point that disagrees with
+    a degree-2 fit of its segment is a scattered false positive. A point must be an inlier on *both*
+    axes to be kept.
+    """
+    frames = np.asarray(frames, dtype=float)
+    xy = np.asarray(xy, dtype=float)
+    if len(frames) <= 3:
+        return np.ones(len(frames), dtype=bool)
+    rng = rng or np.random.default_rng(0)
+    t = frames - frames[0]
+    mx = _ransac_poly1d(t, xy[:, 0], inlier=inlier_px, iters=iters, rng=rng)
+    my = _ransac_poly1d(t, xy[:, 1], inlier=inlier_px, iters=iters, rng=rng)
+    return mx & my
+
+
+def clean_track_2d(frames: np.ndarray, xy: np.ndarray, *, max_gap: int = 6,
+                   bounce_frames: tuple[int, ...] = (), inlier_px: float = 12.0) -> np.ndarray:
+    """Per-point keep mask: split on gaps/bounces, RANSAC each segment, drop pixel-space outliers.
+
+    The robust pixel-parabola defense the constant-velocity :func:`smooth` cannot provide on its own
+    (it smears a physically-plausible false positive into the track instead of rejecting it).
+    """
+    frames = np.asarray(frames)
+    xy = np.asarray(xy, dtype=float)
+    n = len(frames)
+    if n == 0:
+        return np.zeros(0, dtype=bool)
+    bset = set(bounce_frames)
+    # Segment boundaries: large gaps, or a bounce between consecutive detections.
+    starts = [0]
+    for k in range(1, n):
+        if frames[k] - frames[k - 1] > max_gap or any(
+            frames[k - 1] < bf <= frames[k] for bf in bset
+        ):
+            starts.append(k)
+    starts.append(n)
+    keep = np.ones(n, dtype=bool)
+    rng = np.random.default_rng(0)
+    for a, b in zip(starts[:-1], starts[1:]):
+        if b - a <= 3:
+            continue  # too short to reject anything
+        keep[a:b] = ransac_poly_segment(frames[a:b], xy[a:b], inlier_px=inlier_px, rng=rng)
+    return keep
+
+
 def fill_gaps_2d(
     frames: np.ndarray, xy: np.ndarray, max_fill_gap: int = 4
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

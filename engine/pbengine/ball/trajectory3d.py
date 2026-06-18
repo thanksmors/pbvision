@@ -2,19 +2,21 @@
 
 Given the per-frame 2D detections, the recovered camera (:mod:`pbengine.ball.camera`), and the
 bounces (ground-plane ``Z = 0`` anchors), we reconstruct the ball's 3D position. Between contacts
-the ball is a projectile, so within a short window its motion is
+the ball is a projectile, so over a whole ballistic segment its motion is the single parabola
 
     p(t) = p0 + v0 * t + 0.5 * (0, 0, -g) * t^2     (g = 32.174 ft/s^2)
 
-The trick that keeps this cheap and robust: a pixel observation ``s [u v 1]^T = P [X Y Z 1]^T``
-becomes, after cross-multiplying out the unknown scale ``s``, two equations *linear* in
-``(X, Y, Z)`` — and ``(X, Y, Z)`` are linear in the unknowns ``(p0, v0)``. So each frame's fit is
-an ordinary weighted linear least-squares in 6 unknowns (no nonlinear solver, NumPy only).
+The trick that keeps this cheap: a pixel observation ``s [u v 1]^T = P [X Y Z 1]^T`` becomes, after
+cross-multiplying out the unknown scale ``s``, two equations *linear* in ``(X, Y, Z)`` — and
+``(X, Y, Z)`` are linear in the unknowns ``(p0, v0)``. So fitting a parabola is an ordinary linear
+least-squares in 6 unknowns (no nonlinear solver, NumPy only).
 
-We fit one parabola per frame from a window of nearby detections (centred so the target frame is
-``t = 0``, making the solved ``p0`` that frame's position and ``v0`` its velocity). Windows never
-cross a bounce or a large detection gap, so a single ballistic arc is never blended with the next.
-Single-camera 3D is approximate; per-window reprojection residual gates out unreliable frames.
+We fit **one parabola per ballistic segment**, robustly (RANSAC → refit on inliers), then sample it
+analytically at every frame. Because all frames in a segment share one fit, the recovered arc is
+smooth by construction, and detections that don't lie on the parabola are flagged as outliers (false
+positives) instead of corrupting the track. Segments are bounded by bounces, large detection gaps,
+and — via a reprojection-kink test — paddle hits that the bounce heuristic can't see. Single-camera
+3D is approximate; a per-segment reprojection residual gates out unreliable segments.
 """
 
 from __future__ import annotations
@@ -30,44 +32,75 @@ from pbengine.schema.models import BallSample, Bounce
 G_FT = 32.174  # gravitational acceleration, ft/s^2
 FT_PER_S_TO_MPH = 0.6818181818
 
+# Robust-fit tunables (see _fit_segment_robust / _segment_bounds).
+_INLIER_PX = 8.0          # a detection within this reprojection error joins the segment's parabola
+_SPLIT_REPROJ_PX = 12.0   # a run whose single-parabola RMS exceeds this is tested for a kink (hit)
+_RANSAC_ITERS = 80
+_MIN_SPLIT_POINTS = 5     # min detections on each side to consider a soft (paddle-hit) split
+_GRAV = np.array([0.0, 0.0, -G_FT])
+
 
 @dataclass
 class _Obs:
-    t: float  # time relative to the target frame (s)
+    t: float  # time relative to the segment origin (s)
     u: float
     v: float
     w: float  # weight (sqrt confidence, or anchor weight)
 
 
+def _world_basis(t: float) -> tuple[np.ndarray, np.ndarray]:
+    """Pw(t) = N @ m + c, with the gravity term folded into c. ``m = [p0(3), v0(3)]``."""
+    n = np.zeros((4, 6))
+    n[0, 0] = n[1, 1] = n[2, 2] = 1.0
+    n[0, 3] = n[1, 4] = n[2, 5] = t
+    c = np.array([0.0, 0.0, -0.5 * G_FT * t * t, 1.0])
+    return n, c
+
+
+def _sample_parabola(m: np.ndarray, t: float) -> tuple[np.ndarray, np.ndarray]:
+    """Return (position, velocity) of the fitted parabola ``m`` at time ``t`` (s)."""
+    pos = m[:3] + m[3:] * t + 0.5 * _GRAV * t * t
+    vel = m[3:] + _GRAV * t
+    return pos, vel
+
+
+def _reproject_residuals(m: np.ndarray, obs: list[_Obs], P: np.ndarray) -> list[float]:
+    """Per-observation reprojection error (px) of parabola ``m`` against ``obs``."""
+    res: list[float] = []
+    for o in obs:
+        n, c = _world_basis(o.t)
+        proj = P @ (n @ m + c)
+        px = proj[:2] / proj[2]
+        res.append(float(np.hypot(px[0] - o.u, px[1] - o.v)))
+    return res
+
+
 def _fit_parabola(
-    obs: list[_Obs], anchors: list[tuple[float, float, float]], P: np.ndarray
-) -> tuple[np.ndarray, float] | None:
+    obs: list[_Obs],
+    anchors: list[tuple[float, float, float]],
+    P: np.ndarray,
+    *,
+    return_residuals: bool = False,
+):
     """Solve for ``m = [p0(3), v0(3)]`` from pixel observations + ground anchors.
 
     ``anchors`` are ``(t, X, Y)`` ground contacts (``Z = 0``) added as hard linear constraints.
-    Returns ``(m, rms_reprojection_px)`` or ``None`` if under-constrained / singular.
+    Returns ``(m, rms_reprojection_px)`` — or ``(m, rms, per_obs_residuals)`` when
+    ``return_residuals`` — or ``None`` if under-constrained / singular.
     """
     rows: list[np.ndarray] = []
     rhs: list[float] = []
     p1, p2, p3 = P[0], P[1], P[2]
 
-    def world_basis(t: float) -> tuple[np.ndarray, np.ndarray]:
-        # Pw(t) = N @ m + c, with the gravity term folded into c.
-        n = np.zeros((4, 6))
-        n[0, 0] = n[1, 1] = n[2, 2] = 1.0
-        n[0, 3] = n[1, 4] = n[2, 5] = t
-        c = np.array([0.0, 0.0, -0.5 * G_FT * t * t, 1.0])
-        return n, c
-
     for o in obs:
-        n, c = world_basis(o.t)
+        n, c = _world_basis(o.t)
         for prow, coord in ((p1, o.u), (p2, o.v)):
             a = prow - coord * p3  # (P_row - coord * P3) . Pw = 0
             rows.append(o.w * (a @ n))
             rhs.append(-o.w * float(a @ c))
 
     for (t, x, y) in anchors:
-        n, c = world_basis(t)
+        n, c = _world_basis(t)
         wa = 5.0  # anchors are reliable; weight them above a single pixel obs
         # X(t) = x, Y(t) = y, Z(t) = 0  (Z row: p0z + v0z t - 0.5 g t^2 = 0)
         rows.append(wa * n[0])
@@ -82,15 +115,10 @@ def _fit_parabola(
         return None
     m, *_ = np.linalg.lstsq(a_mat, np.asarray(rhs), rcond=None)
 
-    # Reprojection RMS over the (unweighted) pixel observations.
-    sq = 0.0
-    for o in obs:
-        n, c = world_basis(o.t)
-        pw = n @ m + c
-        proj = P @ pw
-        px = proj[:2] / proj[2]
-        sq += (px[0] - o.u) ** 2 + (px[1] - o.v) ** 2
-    rms = float(np.sqrt(sq / len(obs)))
+    res = _reproject_residuals(m, obs, P)
+    rms = float(np.sqrt(np.mean(np.square(res)))) if res else 0.0
+    if return_residuals:
+        return m, rms, res
     return m, rms
 
 
@@ -98,65 +126,229 @@ def _bounce_world(bounces: list[Bounce]) -> dict[int, tuple[float, float]]:
     return {b.frame: (b.court_xy[0] * WIDTH_FT, b.court_xy[1] * LENGTH_FT) for b in bounces}
 
 
-def _estimate_at(
-    center: int,
-    samples: list[BallSample],
+def _seg_obs(samples: list[BallSample], lo: int, hi: int, t0: int, fps: float) -> list[_Obs]:
+    return [
+        _Obs((samples[k].frame - t0) / fps, samples[k].px[0], samples[k].px[1],
+             np.sqrt(max(samples[k].conf, 1e-3)))
+        for k in range(lo, hi)
+    ]
+
+
+def _split_run(
+    samples: list[BallSample], frames: np.ndarray, lo: int, hi: int, P: np.ndarray, fps: float
+) -> list[tuple[int, int]]:
+    """Recursively split a gap/bounce-free run at velocity discontinuities (paddle hits).
+
+    A single ballistic arc fits one parabola with small RMS. If the whole run reprojects poorly but
+    a left/right partition both fit cleanly, there's a kink (a contact the bounce heuristic missed);
+    split at the partition that best separates the two arcs. Pure reprojection test — no 3D needed.
+    """
+    if hi - lo < 2 * _MIN_SPLIT_POINTS:
+        return [(lo, hi)]
+    t0 = int(frames[lo])
+    obs_all = _seg_obs(samples, lo, hi, t0, fps)
+    whole = _fit_parabola(obs_all, [], P)
+    if whole is None or whole[1] <= _SPLIT_REPROJ_PX:
+        return [(lo, hi)]
+
+    best: tuple[float, int] | None = None
+    for j in range(lo + _MIN_SPLIT_POINTS, hi - _MIN_SPLIT_POINTS + 1):
+        left = _fit_parabola(obs_all[: j - lo], [], P)
+        right = _fit_parabola(obs_all[j - lo:], [], P)
+        if left is None or right is None:
+            continue
+        rl, rr = left[1], right[1]
+        if rl < _SPLIT_REPROJ_PX and rr < _SPLIT_REPROJ_PX:
+            score = whole[1] - max(rl, rr)
+            if best is None or score > best[0]:
+                best = (score, j)
+    if best is None:
+        return [(lo, hi)]
+    j = best[1]
+    return _split_run(samples, frames, lo, j, P, fps) + _split_run(samples, frames, j, hi, P, fps)
+
+
+def _segment_bounds(
     frames: np.ndarray,
+    samples: list[BallSample],
     bounce_frames: list[int],
-    bounce_world: dict[int, tuple[float, float]],
     P: np.ndarray,
     fps: float,
-    window: int,
+    max_gap: int,
+    *,
+    split_on_kinks: bool = True,
+) -> list[tuple[int, int]]:
+    """Index ranges ``[lo, hi)`` into ``samples``, each a single ballistic arc.
+
+    Hard cuts (certain): a detection gap > ``max_gap`` frames, and any bounce frame (a bounce
+    reverses Z velocity, so it starts a new arc). Soft cuts (optional): paddle hits via
+    :func:`_split_run`.
+    """
+    n = len(frames)
+    if n == 0:
+        return []
+    cuts: set[int] = set()
+    for k in range(n - 1):
+        if frames[k + 1] - frames[k] > max_gap:
+            cuts.add(k + 1)
+        if any(frames[k] < bf <= frames[k + 1] for bf in bounce_frames):
+            cuts.add(k + 1)
+    # A detection landing exactly on a bounce frame begins its (new) arc.
+    bset = set(bounce_frames)
+    for k in range(1, n):
+        if int(frames[k]) in bset:
+            cuts.add(k)
+
+    runs: list[tuple[int, int]] = []
+    start = 0
+    for k in range(1, n):
+        if k in cuts:
+            runs.append((start, k))
+            start = k
+    runs.append((start, n))
+
+    if not split_on_kinks:
+        return runs
+    out: list[tuple[int, int]] = []
+    for lo, hi in runs:
+        out.extend(_split_run(samples, frames, lo, hi, P, fps))
+    return out
+
+
+def _fit_segment_robust(
+    seg_obs: list[_Obs],
+    anchors: list[tuple[float, float, float]],
+    P: np.ndarray,
+    *,
+    inlier_px: float = _INLIER_PX,
+    min_inliers: int = 4,
+    iters: int = _RANSAC_ITERS,
+    rng: np.random.Generator | None = None,
+) -> tuple[np.ndarray, np.ndarray, float] | None:
+    """RANSAC a single gravity parabola over a segment's observations.
+
+    Returns ``(m, inlier_mask, rms_inliers)`` or ``None`` if too few observations agree. A minimal
+    3-observation subset (6 equations) determines ``m``; the model with the most inliers
+    (reprojection < ``inlier_px``) wins and is refit on its inliers.
+    """
+    nobs = len(seg_obs)
+    if nobs < min_inliers:
+        return None
+    if nobs <= 3:
+        fit = _fit_parabola(seg_obs, anchors, P)
+        if fit is None:
+            return None
+        return fit[0], np.ones(nobs, dtype=bool), fit[1]
+
+    rng = rng or np.random.default_rng(0)
+    idx = np.arange(nobs)
+    best: tuple[tuple[int, float], np.ndarray] | None = None
+    for _ in range(iters):
+        pick = rng.choice(idx, size=3, replace=False)
+        fit = _fit_parabola([seg_obs[i] for i in pick], anchors, P)
+        if fit is None:
+            continue
+        res = np.array(_reproject_residuals(fit[0], seg_obs, P))
+        mask = res < inlier_px
+        cnt = int(mask.sum())
+        if cnt < 3:
+            continue
+        rms_in = float(np.sqrt(np.mean(np.square(res[mask]))))
+        key = (cnt, -rms_in)
+        if best is None or key > best[0]:
+            best = (key, mask)
+    if best is None or int(best[1].sum()) < min_inliers:
+        return None
+
+    inliers = [seg_obs[i] for i in idx if best[1][i]]
+    fit = _fit_parabola(inliers, anchors, P)
+    if fit is None:
+        return None
+    m = fit[0]
+    res = np.array(_reproject_residuals(m, seg_obs, P))
+    mask = res < inlier_px
+    if int(mask.sum()) < min_inliers:
+        mask = best[1]
+    rms = float(np.sqrt(np.mean(np.square(res[mask]))))
+    return m, mask, rms
+
+
+def _segment_fits(
+    samples: list[BallSample],
+    frames: np.ndarray,
+    bounces: list[Bounce],
+    P: np.ndarray,
+    fps: float,
     min_points: int,
     max_gap: int,
     max_reproj_px: float,
-) -> tuple[np.ndarray, np.ndarray] | None:
-    """Fit the local gravity parabola centred at frame ``center`` and return ``(pos, vel)``.
+    split_on_kinks: bool,
+    rng: np.random.Generator,
+) -> list[dict]:
+    """Robustly fit one parabola per ballistic segment. Returns fit records with inlier masks."""
+    bounce_frames = sorted(b.frame for b in bounces)
+    bounce_world = _bounce_world(bounces)
+    segments = _segment_bounds(frames, samples, bounce_frames, P, fps, max_gap,
+                               split_on_kinks=split_on_kinks)
+    fits: list[dict] = []
+    for lo, hi in segments:
+        if hi - lo < min_points:
+            continue
+        t0 = int(frames[lo])
+        last = int(frames[hi - 1])
+        seg_obs = _seg_obs(samples, lo, hi, t0, fps)
+        anchors = [((bf - t0) / fps, *bounce_world[bf]) for bf in bounce_frames if t0 <= bf <= last]
+        fit = _fit_segment_robust(seg_obs, anchors, P, min_inliers=min_points, rng=rng)
+        if fit is None:
+            continue
+        m, mask, rms = fit
+        if rms > max_reproj_px:
+            continue
+        fits.append({"lo": lo, "hi": hi, "t0": t0, "last": last, "m": m, "mask": mask})
+    return fits
 
-    ``center`` may be a detected frame (used by :func:`reconstruct_3d`) or a missing one (used by
-    :func:`fill_gaps_3d`); the windowing is identical. Neighbours are gathered within ``window``
-    frames, never crossing a bounce or a gap larger than ``max_gap``. Returns ``None`` if the fit
-    is under-constrained or reprojects worse than ``max_reproj_px``.
+
+def reconstruct_3d_segments(
+    samples: list[BallSample],
+    bounces: list[Bounce],
+    camera: CameraModel,
+    fps: float,
+    window: int = 4,
+    min_points: int = 4,
+    max_gap: int = 6,
+    max_reproj_px: float = 20.0,
+    *,
+    split_on_kinks: bool = True,
+) -> tuple[list[BallSample], set[int]]:
+    """Lift the track to 3D per ballistic segment; also return the rejected (outlier) frames.
+
+    Each segment gets one robust parabola (see :func:`_fit_segment_robust`) sampled analytically at
+    every inlier frame — so the arc is smooth by construction. Detections the segment fit rejects
+    (false positives) are returned in ``outlier_frames`` so callers can cull them from the overlay.
+    ``window`` is retained for signature compatibility (the fit is now per-segment, not per-window).
     """
+    if not samples:
+        return [], set()
+    samples = sorted(samples, key=lambda s: s.frame)
+    frames = np.array([s.frame for s in samples])
+    rng = np.random.default_rng(0)
+    fits = _segment_fits(samples, frames, bounces, camera.P, fps, min_points, max_gap,
+                         max_reproj_px, split_on_kinks, rng)
 
-    def crosses_bounce(a: int, b: int) -> bool:
-        lo, hi = (a, b) if a < b else (b, a)
-        return any(lo < bf < hi for bf in bounce_frames)
-
-    obs: list[_Obs] = []
-    lo = int(np.searchsorted(frames, center, side="right"))  # first sample with frame > center
-    prev = center
-    for k in range(lo - 1, -1, -1):  # walk left (includes a detection at ``center`` itself)
-        fj = int(frames[k])
-        if center - fj > window or crosses_bounce(fj, center) or (prev - fj) > max_gap:
-            break
-        s = samples[k]
-        obs.append(_Obs((fj - center) / fps, s.px[0], s.px[1], np.sqrt(max(s.conf, 1e-3))))
-        prev = fj
-    prev = center
-    for k in range(lo, len(samples)):  # walk right
-        fj = int(frames[k])
-        if fj - center > window or crosses_bounce(center, fj) or (fj - prev) > max_gap:
-            break
-        s = samples[k]
-        obs.append(_Obs((fj - center) / fps, s.px[0], s.px[1], np.sqrt(max(s.conf, 1e-3))))
-        prev = fj
-
-    if len(obs) < min_points:
-        return None
-    anchors: list[tuple[float, float, float]] = []
-    for bf in bounce_frames:
-        if abs(bf - center) <= window and not crosses_bounce(min(bf, center), max(bf, center)):
-            bx, by = bounce_world[bf]
-            anchors.append(((bf - center) / fps, bx, by))
-
-    fit = _fit_parabola(obs, anchors, P)
-    if fit is None:
-        return None
-    m, rms = fit
-    if rms > max_reproj_px:
-        return None
-    return m[:3], np.array([m[3], m[4], m[5]])  # position, velocity at t = 0 (this frame)
+    out = [s.model_copy() for s in samples]
+    outlier_frames: set[int] = set()
+    for fit in fits:
+        lo, t0, m, mask = fit["lo"], fit["t0"], fit["m"], fit["mask"]
+        for j in range(len(mask)):
+            s = samples[lo + j]
+            if not mask[j]:
+                outlier_frames.add(s.frame)
+                continue
+            pos, vel = _sample_parabola(m, (s.frame - t0) / fps)
+            o = out[lo + j]
+            o.world_ft = (float(pos[0]), float(pos[1]), float(max(pos[2], 0.0)))
+            o.speed_mph = float(np.linalg.norm(vel)) * FT_PER_S_TO_MPH
+    return out, outlier_frames
 
 
 def reconstruct_3d(
@@ -171,27 +363,11 @@ def reconstruct_3d(
 ) -> list[BallSample]:
     """Return copies of ``samples`` with ``world_ft`` and ``speed_mph`` filled where recoverable.
 
-    ``window`` is the half-width (in frames) of the local fit. Windows are clipped so they never
-    span a bounce or a gap larger than ``max_gap`` frames — that keeps two ballistic arcs from
-    being blended. Frames whose fit reprojects worse than ``max_reproj_px`` are left in 2D only.
+    Thin wrapper over :func:`reconstruct_3d_segments` (drops the outlier set) for the callers/tests
+    that only need the enriched samples.
     """
-    if not samples:
-        return []
-    samples = sorted(samples, key=lambda s: s.frame)
-    frames = np.array([s.frame for s in samples])
-    bounce_frames = sorted(b.frame for b in bounces)
-    bounce_world = _bounce_world(bounces)
-
-    out: list[BallSample] = []
-    for s in samples:
-        new = s.model_copy()
-        est = _estimate_at(s.frame, samples, frames, bounce_frames, bounce_world, camera.P,
-                           fps, window, min_points, max_gap, max_reproj_px)
-        if est is not None:
-            pos, vel = est
-            new.world_ft = (float(pos[0]), float(pos[1]), float(max(pos[2], 0.0)))
-            new.speed_mph = float(np.linalg.norm(vel)) * FT_PER_S_TO_MPH
-        out.append(new)
+    out, _ = reconstruct_3d_segments(samples, bounces, camera, fps, window, min_points, max_gap,
+                                     max_reproj_px)
     return out
 
 
@@ -204,40 +380,36 @@ def fill_gaps_3d(
     window: int = 4,
     min_points: int = 4,
     max_reproj_px: float = 20.0,
+    *,
+    split_on_kinks: bool = True,
 ) -> list[BallSample]:
     """Add physics-interpolated samples at frames *between* detections so the track is continuous.
 
-    For each missing frame inside a gap of at most ``max_fill_gap`` frames that does not cross a
-    bounce, fit the local gravity parabola (same machinery as :func:`reconstruct_3d`), evaluate the
-    3D position, and reproject it to pixels via ``camera``. Filled samples are flagged
-    ``interpolated=True`` with ``conf=0`` so analytics never treat a guess as a measurement.
+    Refits the same per-segment parabolas as :func:`reconstruct_3d_segments` and samples them at the
+    missing frames inside each segment, so fills come from the *same* clean arc (no per-frame
+    jitter). Filled samples are flagged ``interpolated=True`` with ``conf=0``. Segments are built
+    with ``max_gap = max_fill_gap``, so a gap wider than ``max_fill_gap`` (or one containing a
+    bounce) is a segment boundary and is never bridged.
 
-    Expects ``samples`` already enriched by :func:`reconstruct_3d`; returns measured + filled,
-    sorted by frame.
+    Expects ``samples`` already enriched by :func:`reconstruct_3d`; returns measured + filled.
     """
     if not samples:
         return []
     samples = sorted(samples, key=lambda s: s.frame)
     frames = np.array([s.frame for s in samples])
-    bounce_frames = sorted(b.frame for b in bounces)
-    bounce_world = _bounce_world(bounces)
-    bset = set(bounce_frames)
+    present = {int(f) for f in frames}
+    bset = {b.frame for b in bounces}
+    rng = np.random.default_rng(0)
+    fits = _segment_fits(samples, frames, bounces, camera.P, fps, min_points, max_fill_gap,
+                         max_reproj_px, split_on_kinks, rng)
 
     filled: list[BallSample] = []
-    for a, b in zip(frames[:-1], frames[1:]):
-        gap = int(b - a)
-        if gap <= 1 or gap > max_fill_gap:
-            continue  # adjacent, or too wide to interpolate safely
-        if any(a < bf < b for bf in bounce_frames):
-            continue  # a contact happened in this gap — don't blend two arcs
-        for f in range(int(a) + 1, int(b)):
-            if f in bset:
+    for fit in fits:
+        t0, last, m = fit["t0"], fit["last"], fit["m"]
+        for f in range(t0 + 1, last):
+            if f in present or f in bset:
                 continue
-            est = _estimate_at(f, samples, frames, bounce_frames, bounce_world, camera.P,
-                               fps, window, min_points, max_fill_gap, max_reproj_px)
-            if est is None:
-                continue
-            pos, vel = est
+            pos, vel = _sample_parabola(m, (f - t0) / fps)
             x, y, z = float(pos[0]), float(pos[1]), float(max(pos[2], 0.0))
             px = camera.project(np.array([[x, y, z]]))[0]
             filled.append(BallSample(
@@ -252,6 +424,25 @@ def fill_gaps_3d(
     merged = samples + filled
     merged.sort(key=lambda s: s.frame)
     return merged
+
+
+def clean_2d_samples(samples: list[BallSample], max_fill_gap: int = 4, max_gap: int = 6) -> list[BallSample]:
+    """No-camera path: robustly reject false-positive detections, then gap-fill in pixels.
+
+    Splits the track on detection gaps, RANSAC-fits a degree-2 pixel parabola per segment to drop
+    scattered false positives (which the constant-velocity Kalman would otherwise smear in), then
+    linearly fills short gaps for a continuous overlay. Filled frames are flagged ``interpolated``.
+    """
+    from pbengine.ball.kalman import clean_track_2d
+
+    if len(samples) < 2:
+        return list(samples)
+    samples = sorted(samples, key=lambda s: s.frame)
+    frames = np.array([s.frame for s in samples])
+    xy = np.array([[s.px[0], s.px[1]] for s in samples], dtype=float)
+    keep = clean_track_2d(frames, xy, max_gap=max_gap)
+    kept = [s for s, k in zip(samples, keep) if k]
+    return fill_gaps_2d_samples(kept, max_fill_gap=max_fill_gap)
 
 
 def fill_gaps_2d_samples(samples: list[BallSample], max_fill_gap: int = 4) -> list[BallSample]:
