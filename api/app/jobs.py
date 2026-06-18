@@ -53,9 +53,10 @@ def start_job(job_id: str, fixture: bool = False) -> None:
     ``fixture=True`` runs the pipeline with scripted synthetic detectors (no ML), used by the
     demo so the full flow works on a CPU-only box with nothing but the core deps installed.
 
-    Real uploads default to CPU-friendly player tracking (nano weights + frame striding) so a
-    run actually finishes on a laptop; override via ``PBV_PLAYERS_WEIGHTS`` / ``PBV_VID_STRIDE``
-    (e.g. ``yolo26m.pt`` and ``1`` on a GPU box).
+    Real uploads default to CPU-friendly player tracking + **pose** (nano pose weights + frame
+    striding) so a run actually finishes on a laptop *and* produces skeletons; override via
+    ``PBV_PLAYERS_WEIGHTS`` / ``PBV_VID_STRIDE`` (e.g. ``yolo11m-pose.pt`` and ``1`` on a GPU box,
+    or a plain detector like ``yolo26m.pt`` to skip skeletons).
     """
     d = job_dir(job_id)
     video = next(d.glob("input.*"))
@@ -79,7 +80,7 @@ def start_job(job_id: str, fixture: bool = False) -> None:
     else:
         cmd += [
             "--players-weights",
-            os.environ.get("PBV_PLAYERS_WEIGHTS", "yolo26n.pt"),
+            os.environ.get("PBV_PLAYERS_WEIGHTS", "yolo11n-pose.pt"),
             "--vid-stride",
             os.environ.get("PBV_VID_STRIDE", "3"),
         ]
