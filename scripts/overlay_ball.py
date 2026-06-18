@@ -40,7 +40,21 @@ def main(video: str, out_path: str) -> int:
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # cv2.VideoWriter fails *silently* if the codec isn't in this OpenCV build (it returns
+    # an object that just drops every frame -> a 0-byte/absent file). Try mp4v, then fall
+    # back to MJPG/.avi, which ships with essentially every OpenCV. Verify it opened.
     writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+    if not writer.isOpened():
+        avi_path = str(Path(out_path).with_suffix(".avi"))
+        print(f"mp4v codec unavailable; falling back to MJPG -> {avi_path}")
+        writer = cv2.VideoWriter(avi_path, cv2.VideoWriter_fourcc(*"MJPG"), fps, (w, h))
+        out_path = avi_path
+    if not writer.isOpened():
+        cap.release()
+        print("could not open any video writer (no mp4v or MJPG codec). "
+              "Install ffmpeg/opencv with codec support: pip install opencv-python")
+        return 1
 
     trail: deque[tuple[int, int]] = deque(maxlen=TRAIL)
     idx = 0
@@ -62,7 +76,14 @@ def main(video: str, out_path: str) -> int:
 
     cap.release()
     writer.release()
-    print(f"wrote {out_path} ({idx} frames). Open it and confirm the red ring rides the ball.")
+
+    size = Path(out_path).stat().st_size if Path(out_path).exists() else 0
+    if size == 0:
+        print(f"ERROR: {out_path} is empty/missing — the writer dropped every frame. "
+              "Your OpenCV likely lacks video-encoding support.")
+        return 1
+    print(f"wrote {out_path} ({idx} frames, {size // 1024} KB). "
+          "Open it and confirm the red ring rides the ball.")
     return 0
 
 
