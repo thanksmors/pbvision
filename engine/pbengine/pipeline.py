@@ -47,7 +47,7 @@ from pbengine.io.video import iter_frames, probe
 StatusCb = Callable[[str, float], None]
 
 ENGINE_VERSION = "0.1.0"
-_MODELS = {"detector": "yolo26m", "ball": "wasb-tennis", "court": "tenniscourtdetector"}
+_MODELS = {"detector": "yolo11m-pose", "ball": "wasb-tennis", "court": "tenniscourtdetector"}
 
 
 def analyze_match(
@@ -84,24 +84,25 @@ def analyze_match(
         exc_types=(ModelUnavailable, CourtNotFound),
     )
 
-    report("players", 0.3)
-    players = _skip_if_unavailable(
-        "players", warnings, [], _track_players, video_path, homography, player_detector
-    )
-
-    report("ball", 0.6)
-    ball = _skip_if_unavailable(
-        "ball", warnings, [], ball_tracker.track, video_path, homography=homography, stride=stride
-    )
-
-    # Recover a metric camera from the court homography so the ball track can be lifted to 3D.
-    # Optional: if it fails or the corner reprojection is poor, points keep their 2D trajectory.
+    # Recover a metric camera from the court homography (needs only homography + dims). Recovered
+    # before players so pose keypoints can be lifted to 3D; also used to lift the ball track.
+    # Optional: if it fails or the corner reprojection is poor, output keeps its 2D coords.
     camera = None
     if homography is not None:
         camera = _skip_if_unavailable(
             "camera_3d", warnings, None, _recover_camera, homography, meta.width, meta.height,
             exc_types=(Exception,),
         )
+
+    report("players", 0.3)
+    players = _skip_if_unavailable(
+        "players", warnings, [], _track_players, video_path, homography, player_detector, camera
+    )
+
+    report("ball", 0.6)
+    ball = _skip_if_unavailable(
+        "ball", warnings, [], ball_tracker.track, video_path, homography=homography, stride=stride
+    )
 
     report("rallies", 0.85)
     points = _build_points(ball, meta.fps, camera)
@@ -158,10 +159,16 @@ def _solve_court(
 
 
 def _track_players(
-    video_path: Path, homography: np.ndarray | None, detector: PlayerDetector
+    video_path: Path, homography: np.ndarray | None, detector: PlayerDetector, camera=None
 ) -> list[Player]:
-    """Track players and project foot positions into court coords; assign teams by side."""
+    """Track players, project feet to court coords, lift pose to 3D, and assign teams by side."""
     from pbengine.court.homography import project
+    from pbengine.players.pose3d import (
+        billboard_lift,
+        ground_xy_ft,
+        paddle_segment_px,
+        paddle_tip_world,
+    )
 
     tracks = detector.track(video_path)
     by_id: dict[int, list[PlayerPosition]] = defaultdict(list)
@@ -170,8 +177,22 @@ def _track_players(
         court_xy = (0.0, 0.0)
         if homography is not None:
             court_xy = tuple(project(homography, t.foot_px)[0])
+
+        pose_world = paddle_px = paddle_world = None
+        if t.keypoints_px is not None:
+            paddle_px = paddle_segment_px(t.keypoints_px, t.keypoint_conf)
+            if camera is not None and homography is not None:
+                pose_world = billboard_lift(
+                    t.keypoints_px, t.keypoint_conf, ground_xy_ft(court_xy), camera
+                )
+                paddle_world = paddle_tip_world(pose_world, t.keypoint_conf)
+
         by_id[t.track_id].append(
-            PlayerPosition(frame=t.frame, court_xy=court_xy, bbox_px=t.bbox_px)
+            PlayerPosition(
+                frame=t.frame, court_xy=court_xy, bbox_px=t.bbox_px,
+                pose_px=t.keypoints_px, pose_conf=t.keypoint_conf, pose_world_ft=pose_world,
+                paddle_px=paddle_px, paddle_world_ft=paddle_world,
+            )
         )
         if homography is not None:
             side_votes[t.track_id].append(side_of(court_xy))
@@ -265,8 +286,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--players-weights",
-        default="yolo26m.pt",
-        help="Ultralytics weights for player tracking (use yolo26n.pt on CPU)",
+        default="yolo11m-pose.pt",
+        help="Ultralytics weights for player tracking + pose (use yolo11n-pose.pt on CPU; "
+             "a plain detector like yolo26m.pt skips skeletons)",
     )
     parser.add_argument(
         "--vid-stride",

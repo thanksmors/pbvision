@@ -93,6 +93,19 @@ class PlayerPosition(BaseModel):
     frame: int
     court_xy: CourtXY
     bbox_px: BBox | None = Field(None, description="source-pixel bbox for the viewer overlay")
+    pose_px: list[Px] | None = Field(
+        None, description="COCO-17 keypoints in source pixels (None if no pose model)"
+    )
+    pose_conf: list[float] | None = Field(None, description="per-keypoint confidence [0, 1]")
+    pose_world_ft: list[tuple[float, float, float]] | None = Field(
+        None, description="keypoints lifted to 3D court feet (None if no camera / degenerate lift)"
+    )
+    paddle_px: BBox | None = Field(
+        None, description="wrist-anchored paddle segment (base_x, base_y, tip_x, tip_y) in px"
+    )
+    paddle_world_ft: tuple[float, float, float] | None = Field(
+        None, description="paddle tip in 3D court feet (None if no camera)"
+    )
 
 
 class Player(BaseModel):

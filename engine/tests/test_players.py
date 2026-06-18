@@ -56,3 +56,33 @@ def test_vid_stride_maps_frames_to_source_space():
     tracks = det.track("ignored.mp4")
     assert [t.frame for t in tracks] == [0, 5]
     assert model.calls["vid_stride"] == 5
+
+
+def test_track_parses_pose_keypoints():
+    """A pose model attaches res.keypoints (xy + conf), aligned by box index."""
+    kxy = [[[float(i), float(i + 1)] for i in range(17)],
+           [[float(i + 100), float(i)] for i in range(17)]]
+    kcf = [[0.9] * 17, [0.7] * 17]
+
+    class _PoseModel:
+        calls: dict = {}
+
+        def track(self, **kwargs):
+            _PoseModel.calls = kwargs
+            yield SimpleNamespace(
+                boxes=SimpleNamespace(id=_Tensor([1, 2]),
+                                      xyxy=_Tensor([[0, 0, 10, 10], [5, 5, 15, 15]])),
+                keypoints=SimpleNamespace(xy=_Tensor(kxy), conf=_Tensor(kcf)),
+            )
+
+    tracks = PlayerDetector(_model=_PoseModel()).track("ignored.mp4")
+    assert len(tracks) == 2
+    assert tracks[0].keypoints_px == [(float(i), float(i + 1)) for i in range(17)]
+    assert tracks[0].keypoint_conf == [0.9] * 17
+    assert tracks[1].keypoints_px[0] == (100.0, 0.0)
+
+
+def test_detect_only_model_has_no_keypoints():
+    """A plain detector (no res.keypoints) leaves keypoint fields None — backward compatible."""
+    tracks = PlayerDetector(_model=_FakeModel([([[0, 0, 10, 10]], [1])])).track("x.mp4")
+    assert tracks[0].keypoints_px is None and tracks[0].keypoint_conf is None

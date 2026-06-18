@@ -393,6 +393,14 @@ function toCanvas(px, c) {
 }
 
 // Nearest player box per track to a given frame (players may be sampled with a stride).
+// COCO-17 skeleton edges (mirrors pbengine.detect.pose.COCO_SKELETON).
+const COCO_SKELETON = [
+  [15, 13], [13, 11], [16, 14], [14, 12], [11, 12],
+  [5, 11], [6, 12], [5, 6], [5, 7], [7, 9], [6, 8], [8, 10],
+  [0, 5], [0, 6],
+];
+const KP_CONF_MIN = 0.3;  // below this a keypoint is unreliable — don't draw it
+
 function drawPlayers(ctx, c, frame) {
   if (!MATCH.players) return;
   ctx.lineWidth = 2;
@@ -400,19 +408,67 @@ function drawPlayers(ctx, c, frame) {
   for (const pl of MATCH.players) {
     let best = null, bestD = Infinity;
     for (const pos of pl.positions) {
-      if (!pos.bbox_px) continue;
       const d = Math.abs(pos.frame - frame);
       if (d < bestD) { bestD = d; best = pos; }
     }
-    if (!best || bestD > 15) continue; // don't draw a stale box far from the current frame
-    const [x1, y1] = toCanvas([best.bbox_px[0], best.bbox_px[1]], c);
-    const [x2, y2] = toCanvas([best.bbox_px[2], best.bbox_px[3]], c);
-    ctx.strokeStyle = "rgba(80,220,120,.95)";
-    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-    ctx.fillStyle = "rgba(80,220,120,.95)";
-    const label = `#${pl.track_id}` + (pl.team ? ` (${pl.team})` : "");
-    ctx.fillText(label, x1 + 2, Math.max(12, y1 - 3));
+    if (!best || bestD > 15) continue; // don't draw a stale pose far from the current frame
+    // Faint bbox + id label for context; the skeleton is the primary cue.
+    if (best.bbox_px) {
+      const [x1, y1] = toCanvas([best.bbox_px[0], best.bbox_px[1]], c);
+      const [x2, y2] = toCanvas([best.bbox_px[2], best.bbox_px[3]], c);
+      ctx.strokeStyle = "rgba(80,220,120,.30)";
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      ctx.fillStyle = "rgba(80,220,120,.95)";
+      ctx.fillText(`#${pl.track_id}` + (pl.team ? ` (${pl.team})` : ""), x1 + 2, Math.max(12, y1 - 3));
+    }
+    drawSkeleton(ctx, c, best);
+    drawPaddle(ctx, c, best);
   }
+}
+
+// Gather each player's nearest-frame 3D pose/paddle for the three.js view.
+function players3dAtFrame(frame) {
+  const out = [];
+  for (const pl of (MATCH.players || [])) {
+    let best = null, bestD = Infinity;
+    for (const pos of pl.positions) {
+      const d = Math.abs(pos.frame - frame);
+      if (d < bestD) { bestD = d; best = pos; }
+    }
+    if (!best || bestD > 15 || !best.pose_world_ft) continue;
+    out.push({ pose: best.pose_world_ft, conf: best.pose_conf, paddle: best.paddle_world_ft });
+  }
+  return out;
+}
+
+function drawSkeleton(ctx, c, pos) {
+  if (!pos.pose_px) return;
+  const cf = pos.pose_conf || pos.pose_px.map(() => 1);
+  ctx.strokeStyle = "rgba(80,220,120,.9)";
+  ctx.lineWidth = 2;
+  for (const [a, b] of COCO_SKELETON) {
+    if (cf[a] < KP_CONF_MIN || cf[b] < KP_CONF_MIN) continue;
+    const [ax, ay] = toCanvas(pos.pose_px[a], c);
+    const [bx, by] = toCanvas(pos.pose_px[b], c);
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(180,255,200,.95)";
+  pos.pose_px.forEach((p, k) => {
+    if (cf[k] < KP_CONF_MIN) return;
+    const [x, y] = toCanvas(p, c);
+    ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 2 * Math.PI); ctx.fill();
+  });
+}
+
+function drawPaddle(ctx, c, pos) {
+  if (!pos.paddle_px) return;
+  const [bx, by] = toCanvas([pos.paddle_px[0], pos.paddle_px[1]], c);
+  const [tx, ty] = toCanvas([pos.paddle_px[2], pos.paddle_px[3]], c);
+  ctx.strokeStyle = "rgba(255,150,0,.95)";
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+  ctx.fillStyle = "rgba(255,170,30,.85)";
+  ctx.beginPath(); ctx.arc(tx, ty, 5, 0, 2 * Math.PI); ctx.fill();
 }
 
 function drawPoint(i) {
@@ -420,7 +476,12 @@ function drawPoint(i) {
   ctx.clearRect(0, 0, c.width, c.height);
 
   const fps = MATCH.video.fps || 30;
-  drawPlayers(ctx, c, $("video").currentTime * fps);
+  const curFrame = $("video").currentTime * fps;
+  drawPlayers(ctx, c, curFrame);
+  // Keep the 3D skeletons in sync with playback (only when the 3D panel is open).
+  if (window.renderPlayers3d && $("panel3d").style.display !== "none") {
+    window.renderPlayers3d(players3dAtFrame(curFrame));
+  }
 
   // Full court outline, projected through the homography (court_quad_px already in draw order:
   // a_left, a_right, b_right, b_left) — shows the whole court even where a corner is off-frame.
@@ -595,6 +656,46 @@ window.render3d = function (traj, bounces) {
       new THREE.MeshBasicMaterial({ color: 0xfbbf24 }));
     m.position.copy(P(b.court_xy[0] * W, b.court_xy[1] * L, 0.02));
     scene.add(m); dyn.push(m);
+  }
+};
+
+// COCO-17 skeleton edges (mirror of the 2D const / pbengine.detect.pose.COCO_SKELETON).
+const SKELE = [[15,13],[13,11],[16,14],[14,12],[11,12],[5,11],[6,12],[5,6],
+               [5,7],[7,9],[6,8],[8,10],[0,5],[0,6]];
+let dynPlayers = [];
+
+// Draw each player's skeleton + paddle at the current frame (called from the playback handler).
+// framePlayers: [{pose:[[x,y,z]*17]|null, conf:[..]|null, paddle:[x,y,z]|null}, ...]
+window.renderPlayers3d = function (framePlayers) {
+  if (!renderer) return;  // 3D scene not built yet (no point selected)
+  for (const o of dynPlayers) scene.remove(o);
+  dynPlayers = [];
+  const COL = 0x50dc78;
+  for (const fp of (framePlayers || [])) {
+    const kp = fp.pose;
+    if (!kp) continue;
+    const zmax = Math.max(...kp.map((p) => p[2]));
+    if (!isFinite(zmax) || zmax < 1.0) {
+      // Degenerate/collapsed monocular lift -> stand a vertical stick at the foot point.
+      const ax = (kp[15][0] + kp[16][0]) / 2, ay = (kp[15][1] + kp[16][1]) / 2;
+      dynPlayers.push(line([P(ax, ay, 0), P(ax, ay, 5.5)], COL, 0.9));
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 10),
+        new THREE.MeshBasicMaterial({ color: COL }));
+      head.position.copy(P(ax, ay, 5.5)); scene.add(head); dynPlayers.push(head);
+      continue;
+    }
+    const cf = fp.conf || kp.map(() => 1);
+    for (const [a, b] of SKELE) {
+      if (cf[a] < 0.3 || cf[b] < 0.3) continue;
+      dynPlayers.push(line([P(kp[a][0], kp[a][1], kp[a][2]),
+                            P(kp[b][0], kp[b][1], kp[b][2])], COL, 0.95));
+    }
+    if (fp.paddle) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 10),
+        new THREE.MeshBasicMaterial({ color: 0xff9600 }));
+      m.position.copy(P(fp.paddle[0], fp.paddle[1], fp.paddle[2]));
+      scene.add(m); dynPlayers.push(m);
+    }
   }
 };
 </script>

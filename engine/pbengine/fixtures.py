@@ -54,6 +54,32 @@ def _court_to_px(h: np.ndarray, court_xy: tuple[float, float]) -> tuple[float, f
     return (float(px[0]), float(px[1]))
 
 
+def _stick_figure(
+    fx: float, fy: float, frame: int
+) -> tuple[list[tuple[float, float]], list[float]]:
+    """A synthetic COCO-17 stick figure standing with feet at (fx, fy), with a little arm sway.
+
+    Lets the zero-ML fixture demo exercise the skeleton overlay + 3D lift end to end. Coordinates
+    are pixels; y grows downward, so 'up the body' is negative dy from the feet.
+    """
+    a = 0.10 * np.sin(frame / 15.0)  # arm swing
+    # (dx, dy) offsets from the feet anchor (fy is bottom), in the COCO-17 order.
+    off = [
+        (0, -120),                       # 0 nose
+        (-5, -124), (5, -124),           # 1,2 eyes
+        (-10, -120), (10, -120),         # 3,4 ears
+        (-16, -104), (16, -104),         # 5,6 shoulders
+        (-26 + 18 * a, -84), (26 - 18 * a, -84),   # 7,8 elbows
+        (-30 + 30 * a, -64), (30 - 30 * a, -64),   # 9,10 wrists
+        (-12, -64), (12, -64),           # 11,12 hips
+        (-13, -32), (13, -32),           # 13,14 knees
+        (-14, 0), (14, 0),               # 15,16 ankles
+    ]
+    kp = [(fx + dx, fy + dy) for dx, dy in off]
+    cf = [0.9] * len(kp)
+    return kp, cf
+
+
 # --- Fake model wrappers (match the real classes' interfaces) ----------------------------
 @dataclass
 class FixtureCourtDetector:
@@ -88,11 +114,14 @@ class FixturePlayerDetector:
             sway = 0.02 * np.sin(frame / 20.0)
             for tid, (cx, cy) in bases.items():
                 fx, fy = _court_to_px(h, (cx + sway, cy))
+                kp, cf = _stick_figure(fx, fy, frame)
                 tracks.append(
                     PlayerTrack(
                         track_id=tid,
                         frame=frame,
                         bbox_px=(fx - 28, fy - 120, fx + 28, fy),
+                        keypoints_px=kp,
+                        keypoint_conf=cf,
                     )
                 )
         return tracks
