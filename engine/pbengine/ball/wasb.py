@@ -135,6 +135,7 @@ class WasbBall:
         self._torch = torch
         self._get_affine = get_affine_transform
         self._device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = self._device  # public: callers report cpu vs cuda
         self._step = max(1, min(int(step), _FRAMES_IN))
 
         cfg = _build_cfg(
@@ -163,7 +164,12 @@ class WasbBall:
             ts.append(t)
         return self._torch.cat(ts, dim=0).unsqueeze(0).to(self._device)  # (1, 9, H, W)
 
-    def infer_video(self, video_path: str) -> list[tuple[int, float, float, float]]:
+    def infer_video(
+        self,
+        video_path: str,
+        progress=None,
+        max_frames: int | None = None,
+    ) -> list[tuple[int, float, float, float]]:
         """Return ``(frame, x, y, conf)`` ball detections in source-pixel coords.
 
         Two passes:
@@ -176,6 +182,10 @@ class WasbBall:
 
         Frames are streamed (never all decoded at once — a full 1080p clip is tens of GB), so
         memory stays flat; only the tiny per-frame candidate lists are retained.
+
+        ``progress`` is an optional ``callable(phase: str, done: int, total: int)`` invoked during
+        both passes (``phase`` is ``"detect"`` or ``"track"``); ``None`` keeps this silent.
+        ``max_frames`` caps how many frames are decoded/processed (for quick calibration runs).
         """
         import cv2
 
@@ -187,6 +197,10 @@ class WasbBall:
         if not ok:
             cap.release()
             return []
+
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+        if max_frames is not None and max_frames > 0:
+            total = min(total, max_frames) if total else max_frames
 
         h, w = first.shape[:2]
         c = np.array([w / 2.0, h / 2.0], dtype=np.float32)
@@ -229,20 +243,27 @@ class WasbBall:
             n_real = len(buf)
             window = [buf[min(k, n_real - 1)] for k in range(_FRAMES_IN)]
             run_window(window, start, n_real)
+            if progress is not None:
+                progress("detect", min(start + n_real, total) if total else start + n_real, total)
             if n_real < _FRAMES_IN:
                 break  # processed the final (padded) window
             del buf[: self._step]
             start += self._step
+            if max_frames is not None and start >= max_frames:
+                break  # quick-run cap reached
         cap.release()
 
         # Pass 2: sequential online tracking over the pooled candidates.
         self._tracker.refresh()
+        n_track = min(n, max_frames) if max_frames is not None else n
         raw: list[tuple[int, float, float, float]] = []
-        for fidx in range(n):
+        for fidx in range(n_track):
             dets = [{"xy": xy, "score": sc} for xy, sc in candidates.get(fidx, [])]
             out = self._tracker.update(dets)
             if out["visi"]:
                 raw.append((fidx, float(out["x"]), float(out["y"]), float(out["score"])))
+            if progress is not None:
+                progress("track", fidx + 1, n_track)
 
         # Blob scores are unbounded; normalize to [0, 1] so they satisfy the BallSample schema.
         if raw:

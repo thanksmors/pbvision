@@ -49,21 +49,33 @@ class BallTracker:
             )
 
     def _raw_detections(
-        self, video_path: str | Path, stride: int
+        self,
+        video_path: str | Path,
+        stride: int,
+        progress=None,
+        max_frames: int | None = None,
     ) -> list[tuple[int, float, float, float]]:
         """Return ``(frame, x, y, conf)`` detections from WASB. WASB needs consecutive frames,
         so ``stride`` is ignored here (kept for interface compatibility)."""
         self._ensure_model()
-        return self._model.infer_video(str(video_path))  # type: ignore[union-attr]
+        return self._model.infer_video(  # type: ignore[union-attr]
+            str(video_path), progress=progress, max_frames=max_frames
+        )
 
     def track(
         self,
         video_path: str | Path,
         homography: np.ndarray | None = None,
         stride: int = 1,
+        progress=None,
+        max_frames: int | None = None,
     ) -> list[BallSample]:
-        """Detect, gate, smooth, and (if calibrated) project the ball trajectory."""
-        raw = self._raw_detections(video_path, stride)
+        """Detect, gate, smooth, and (if calibrated) project the ball trajectory.
+
+        ``progress`` is an optional ``callable(phase, done, total)`` for run feedback and
+        ``max_frames`` caps how many frames are processed; both default to inert.
+        """
+        raw = self._raw_detections(video_path, stride, progress=progress, max_frames=max_frames)
         return self.postprocess(raw, homography)
 
     def postprocess(
