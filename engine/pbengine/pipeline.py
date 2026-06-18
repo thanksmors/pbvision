@@ -94,8 +94,17 @@ def analyze_match(
         "ball", warnings, [], ball_tracker.track, video_path, homography=homography, stride=stride
     )
 
+    # Recover a metric camera from the court homography so the ball track can be lifted to 3D.
+    # Optional: if it fails or the corner reprojection is poor, points keep their 2D trajectory.
+    camera = None
+    if homography is not None:
+        camera = _skip_if_unavailable(
+            "camera_3d", warnings, None, _recover_camera, homography, meta.width, meta.height,
+            exc_types=(Exception,),
+        )
+
     report("rallies", 0.85)
-    points = _build_points(ball, meta.fps)
+    points = _build_points(ball, meta.fps, camera)
 
     result = MatchResult(
         match_id=str(uuid.uuid4()),
@@ -175,8 +184,25 @@ def _track_players(
     return players
 
 
-def _build_points(ball: list[BallSample], fps: float) -> list[Point]:
-    """Segment the ball trajectory into points and run serve/bounce/winner per rally."""
+def _recover_camera(homography: np.ndarray, width: int, height: int, max_reproj_px: float = 25.0):
+    """Recover the metric camera, returning ``None`` if the corner reprojection is too poor."""
+    from pbengine.ball.camera import recover_camera
+
+    cam = recover_camera(homography, width, height)
+    if cam.reprojection_error_px > max_reproj_px:
+        raise CourtNotFound(
+            f"camera recovery unreliable ({cam.reprojection_error_px:.0f}px corner error); "
+            "3D ball trajectory skipped"
+        )
+    return cam
+
+
+def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point]:
+    """Segment the ball trajectory into points and run serve/bounce/winner per rally.
+
+    When ``camera`` is available, each rally's ball track is lifted to 3D (feet) with per-frame
+    height and speed via :mod:`pbengine.ball.trajectory3d`.
+    """
     present = [s.frame for s in ball]
     spans = segment_rallies(present, fps)
 
@@ -184,6 +210,10 @@ def _build_points(ball: list[BallSample], fps: float) -> list[Point]:
     for i, span in enumerate(spans):
         traj = [s for s in ball if span.start_frame <= s.frame <= span.end_frame]
         bounces = detect_bounces(traj)
+        if camera is not None:
+            from pbengine.ball.trajectory3d import reconstruct_3d
+
+            traj = reconstruct_3d(traj, bounces, camera, fps)
         serve = detect_serve(traj)
         winner, reason, conf = determine_winner(bounces, traj)
         points.append(

@@ -78,6 +78,11 @@ class BallSample(BaseModel):
     px: Px
     court_xy: CourtXY | None = None
     conf: float = Field(0.0, ge=0.0, le=1.0)
+    world_ft: tuple[float, float, float] | None = Field(
+        None, description="3D ball position in feet (X across, Y along, Z up) from monocular "
+        "reconstruction; None when the camera/trajectory could not be recovered"
+    )
+    speed_mph: float | None = Field(None, description="ball speed at this frame, mph (3D)")
 
 
 class PlayerPosition(BaseModel):
