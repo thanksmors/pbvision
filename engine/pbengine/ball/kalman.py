@@ -74,3 +74,38 @@ def smooth(frames: np.ndarray, xy: np.ndarray, process_var: float = 1.0,
         cov = (np.eye(4) - gain @ meas_h) @ cov
         out[i] = state[:2]
     return out
+
+
+def fill_gaps_2d(
+    frames: np.ndarray, xy: np.ndarray, max_fill_gap: int = 4
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Linearly interpolate pixel positions across *short* detection gaps.
+
+    Constant-velocity between two detections is a straight line, so we fill a gap of width
+    ``<= max_fill_gap`` with evenly-spaced points. Gaps wider than that are left empty rather than
+    hallucinated. Returns ``(frames_out, xy_out, filled_mask)`` with one entry per emitted frame;
+    ``filled_mask[i]`` is True for interpolated frames, False for original detections.
+
+    ``frames`` (N,) must be sorted. Used as the 2D-only fallback when no camera/3D is available.
+    """
+    frames = np.asarray(frames)
+    xy = np.asarray(xy, dtype=float)
+    if len(frames) < 2:
+        return frames, xy, np.zeros(len(frames), dtype=bool)
+
+    out_f: list[int] = []
+    out_xy: list[np.ndarray] = []
+    mask: list[bool] = []
+    for i in range(len(frames)):
+        out_f.append(int(frames[i]))
+        out_xy.append(xy[i])
+        mask.append(False)
+        if i + 1 < len(frames):
+            gap = int(frames[i + 1] - frames[i])
+            if 1 < gap <= max_fill_gap:
+                for k in range(1, gap):
+                    a = k / gap
+                    out_f.append(int(frames[i]) + k)
+                    out_xy.append((1 - a) * xy[i] + a * xy[i + 1])
+                    mask.append(True)
+    return np.array(out_f), np.array(out_xy), np.array(mask, dtype=bool)

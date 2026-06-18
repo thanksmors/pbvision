@@ -11,10 +11,15 @@ from __future__ import annotations
 import numpy as np
 
 from pbengine.ball.camera import recover_camera
-from pbengine.ball.trajectory3d import G_FT, FT_PER_S_TO_MPH, reconstruct_3d
+from pbengine.ball.trajectory3d import (
+    G_FT,
+    FT_PER_S_TO_MPH,
+    fill_gaps_3d,
+    reconstruct_3d,
+)
 from pbengine.court.court_model import LENGTH_FT, WIDTH_FT
 from pbengine.court.homography import compute_homography
-from pbengine.schema.models import BallSample
+from pbengine.schema.models import BallSample, Bounce, Team
 
 W, H, F_PX = 1920, 1080, 1500.0
 
@@ -105,6 +110,49 @@ def test_reconstruct_recovers_parabola_position_and_speed():
         assert np.linalg.norm(np.array(world) - exp_pos) < 0.5  # within half a foot
         exp_speed = np.linalg.norm(v0 + np.array([0, 0, -G_FT]) * t) * FT_PER_S_TO_MPH
         assert abs(speed - exp_speed) < 0.10 * exp_speed + 0.5
+
+
+def _parabola_sample(p_gt, p0, v0, i, fps):
+    t = i / fps
+    pos = p0 + v0 * t + 0.5 * np.array([0, 0, -G_FT]) * t * t
+    px = _project(p_gt, pos.reshape(1, 3))[0]
+    return pos, BallSample(frame=i, px=(float(px[0]), float(px[1])), conf=1.0)
+
+
+def test_fill_gaps_3d_recovers_deleted_frames():
+    """Physics gap-fill: drop the odd frames, then interpolate them back to ~the true 3D point."""
+    p_gt = _lookat_camera()
+    cam = recover_camera(_homography_from_camera(p_gt), W, H)
+    fps = 30.0
+    p0, v0 = np.array([4.0, 8.0, 1.5]), np.array([3.0, 18.0, 9.0])
+    truth, kept = {}, []
+    for i in range(20):
+        pos, s = _parabola_sample(p_gt, p0, v0, i, fps)
+        truth[i] = pos
+        if i % 2 == 0:  # keep even frames; odd frames become gaps to fill
+            kept.append(s)
+
+    out = fill_gaps_3d(reconstruct_3d(kept, [], cam, fps), [], cam, fps, max_fill_gap=6)
+    by = {s.frame: s for s in out}
+    for i in range(3, 16, 2):  # interior odd frames now present, flagged, and accurate
+        assert i in by and by[i].interpolated is True and by[i].world_ft is not None
+        assert np.linalg.norm(np.array(by[i].world_ft) - truth[i]) < 0.7
+    assert by[6].interpolated is False and by[6].conf > 0  # measured frames untouched
+
+
+def test_fill_gaps_3d_respects_bounce_and_gap_limits():
+    p_gt = _lookat_camera()
+    cam = recover_camera(_homography_from_camera(p_gt), W, H)
+    fps = 30.0
+    p0, v0 = np.array([4.0, 8.0, 1.5]), np.array([3.0, 18.0, 9.0])
+    frames = [0, 2, 4, 6, 8, 20, 22]  # 8->20 is a 12-frame gap (wider than max_fill_gap=6)
+    kept = [_parabola_sample(p_gt, p0, v0, i, fps)[1] for i in frames]
+    bounces = [Bounce(frame=5, court_xy=(0.3, 0.3), side=Team.A, in_bounds=True)]
+
+    out = fill_gaps_3d(reconstruct_3d(kept, bounces, cam, fps), bounces, cam, fps, max_fill_gap=6)
+    fills = {s.frame for s in out if s.interpolated}
+    assert all(f not in fills for f in range(9, 20))  # wide gap is never bridged
+    assert 5 not in fills  # a gap containing a bounce (contact) is skipped
 
 
 def test_no_camera_or_short_track_is_safe():

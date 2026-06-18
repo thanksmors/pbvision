@@ -208,14 +208,20 @@ def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point
 
     points: list[Point] = []
     for i, span in enumerate(spans):
-        traj = [s for s in ball if span.start_frame <= s.frame <= span.end_frame]
-        bounces = detect_bounces(traj)
+        measured = [s for s in ball if span.start_frame <= s.frame <= span.end_frame]
+        # Bounce/serve/winner run on *measured* detections only — never on interpolated frames.
+        bounces = detect_bounces(measured)
+        serve = detect_serve(measured)
+        winner, reason, conf = determine_winner(bounces, measured)
+        # The stored trajectory is enriched (3D) and gap-filled for a continuous overlay.
         if camera is not None:
-            from pbengine.ball.trajectory3d import reconstruct_3d
+            from pbengine.ball.trajectory3d import fill_gaps_3d, reconstruct_3d
 
-            traj = reconstruct_3d(traj, bounces, camera, fps)
-        serve = detect_serve(traj)
-        winner, reason, conf = determine_winner(bounces, traj)
+            traj = fill_gaps_3d(reconstruct_3d(measured, bounces, camera, fps), bounces, camera, fps)
+        else:
+            from pbengine.ball.trajectory3d import fill_gaps_2d_samples
+
+            traj = fill_gaps_2d_samples(measured)
         points.append(
             Point(
                 point_index=i,

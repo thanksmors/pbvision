@@ -1,6 +1,6 @@
 import numpy as np
 
-from pbengine.ball.kalman import gate_jumps, smooth
+from pbengine.ball.kalman import fill_gaps_2d, gate_jumps, smooth
 
 
 def test_gate_rejects_teleport():
@@ -27,3 +27,12 @@ def test_smooth_handles_gaps():
     out = smooth(frames, xy)
     assert out.shape == (5, 2)
     assert np.all(np.isfinite(out))
+
+
+def test_fill_gaps_2d_fills_short_and_skips_long():
+    frames = np.array([0, 2, 10])  # a 2-frame gap (fillable) then an 8-frame gap (too wide)
+    xy = np.array([[0, 0], [2, 2], [10, 10]], dtype=float)
+    out_f, out_xy, mask = fill_gaps_2d(frames, xy, max_fill_gap=4)
+    assert out_f.tolist() == [0, 1, 2, 10]
+    assert mask.tolist() == [False, True, False, False]  # only frame 1 is interpolated
+    assert np.allclose(out_xy[1], [1.0, 1.0])  # linear midpoint

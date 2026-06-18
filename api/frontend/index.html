@@ -127,6 +127,7 @@ async function showResult(jobId) {
 function point3d(p) {
   let topSpeed = 0, peakHeight = 0, has = false;
   for (const s of (p.ball_trajectory || [])) {
+    if (s.interpolated) continue;   // never let a guessed frame set a speed/height record
     if (s.world_ft) { peakHeight = Math.max(peakHeight, s.world_ft[2]); has = true; }
     if (s.speed_mph != null) { topSpeed = Math.max(topSpeed, s.speed_mph); }
   }
@@ -421,7 +422,9 @@ function drawPoint(i) {
   // Ball trajectory for the active point.
   const traj = MATCH.points[i].ball_trajectory;
   if (traj && traj.length) {
-    ctx.strokeStyle = "rgba(0,200,255,.9)";
+    // Continuous polyline (now gap-filled). Measured points get a solid cyan dot; physics-filled
+    // points are drawn dimmer/smaller so measured vs interpolated stays visually distinct.
+    ctx.strokeStyle = "rgba(0,200,255,.55)";
     ctx.lineWidth = 2;
     ctx.beginPath();
     traj.forEach((s, j) => {
@@ -429,6 +432,13 @@ function drawPoint(i) {
       j === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.stroke();
+    traj.forEach((s) => {
+      const [x, y] = toCanvas(s.px, c);
+      ctx.fillStyle = s.interpolated ? "rgba(0,200,255,.30)" : "rgba(0,200,255,.95)";
+      ctx.beginPath();
+      ctx.arc(x, y, s.interpolated ? 2 : 3, 0, 2 * Math.PI);
+      ctx.fill();
+    });
   }
 
   // Bounce markers.
@@ -457,7 +467,8 @@ function drawPoint(i) {
       ctx.fill();
       if (cur.world_ft) {
         const txt = `↑ ${cur.world_ft[2].toFixed(1)} ft` +
-          (cur.speed_mph != null ? `   ⚡ ${Math.round(cur.speed_mph)} mph` : "");
+          (cur.speed_mph != null ? `   ⚡ ${Math.round(cur.speed_mph)} mph` : "") +
+          (cur.interpolated ? "  (est.)" : "");
         ctx.font = "bold 15px system-ui";
         const w = ctx.measureText(txt).width + 14;
         ctx.fillStyle = "rgba(0,0,0,.6)";

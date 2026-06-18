@@ -83,6 +83,10 @@ class BallSample(BaseModel):
         "reconstruction; None when the camera/trajectory could not be recovered"
     )
     speed_mph: float | None = Field(None, description="ball speed at this frame, mph (3D)")
+    interpolated: bool = Field(
+        False, description="True if this sample was physics-interpolated to fill a detection gap "
+        "(conf=0); measured detections are False. Excluded from speed/height records."
+    )
 
 
 class PlayerPosition(BaseModel):

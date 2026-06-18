@@ -94,6 +94,71 @@ def _fit_parabola(
     return m, rms
 
 
+def _bounce_world(bounces: list[Bounce]) -> dict[int, tuple[float, float]]:
+    return {b.frame: (b.court_xy[0] * WIDTH_FT, b.court_xy[1] * LENGTH_FT) for b in bounces}
+
+
+def _estimate_at(
+    center: int,
+    samples: list[BallSample],
+    frames: np.ndarray,
+    bounce_frames: list[int],
+    bounce_world: dict[int, tuple[float, float]],
+    P: np.ndarray,
+    fps: float,
+    window: int,
+    min_points: int,
+    max_gap: int,
+    max_reproj_px: float,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """Fit the local gravity parabola centred at frame ``center`` and return ``(pos, vel)``.
+
+    ``center`` may be a detected frame (used by :func:`reconstruct_3d`) or a missing one (used by
+    :func:`fill_gaps_3d`); the windowing is identical. Neighbours are gathered within ``window``
+    frames, never crossing a bounce or a gap larger than ``max_gap``. Returns ``None`` if the fit
+    is under-constrained or reprojects worse than ``max_reproj_px``.
+    """
+
+    def crosses_bounce(a: int, b: int) -> bool:
+        lo, hi = (a, b) if a < b else (b, a)
+        return any(lo < bf < hi for bf in bounce_frames)
+
+    obs: list[_Obs] = []
+    lo = int(np.searchsorted(frames, center, side="right"))  # first sample with frame > center
+    prev = center
+    for k in range(lo - 1, -1, -1):  # walk left (includes a detection at ``center`` itself)
+        fj = int(frames[k])
+        if center - fj > window or crosses_bounce(fj, center) or (prev - fj) > max_gap:
+            break
+        s = samples[k]
+        obs.append(_Obs((fj - center) / fps, s.px[0], s.px[1], np.sqrt(max(s.conf, 1e-3))))
+        prev = fj
+    prev = center
+    for k in range(lo, len(samples)):  # walk right
+        fj = int(frames[k])
+        if fj - center > window or crosses_bounce(center, fj) or (fj - prev) > max_gap:
+            break
+        s = samples[k]
+        obs.append(_Obs((fj - center) / fps, s.px[0], s.px[1], np.sqrt(max(s.conf, 1e-3))))
+        prev = fj
+
+    if len(obs) < min_points:
+        return None
+    anchors: list[tuple[float, float, float]] = []
+    for bf in bounce_frames:
+        if abs(bf - center) <= window and not crosses_bounce(min(bf, center), max(bf, center)):
+            bx, by = bounce_world[bf]
+            anchors.append(((bf - center) / fps, bx, by))
+
+    fit = _fit_parabola(obs, anchors, P)
+    if fit is None:
+        return None
+    m, rms = fit
+    if rms > max_reproj_px:
+        return None
+    return m[:3], np.array([m[3], m[4], m[5]])  # position, velocity at t = 0 (this frame)
+
+
 def reconstruct_3d(
     samples: list[BallSample],
     bounces: list[Bounce],
@@ -115,51 +180,101 @@ def reconstruct_3d(
     samples = sorted(samples, key=lambda s: s.frame)
     frames = np.array([s.frame for s in samples])
     bounce_frames = sorted(b.frame for b in bounces)
-    bounce_world = {
-        b.frame: (b.court_xy[0] * WIDTH_FT, b.court_xy[1] * LENGTH_FT) for b in bounces
-    }
-
-    def crosses_bounce(f_lo: int, f_hi: int) -> bool:
-        return any(f_lo < bf < f_hi for bf in bounce_frames)
+    bounce_world = _bounce_world(bounces)
 
     out: list[BallSample] = []
-    for i, s in enumerate(samples):
-        f0 = s.frame
-        obs: list[_Obs] = []
-        prev = f0
-        # Walk outward from the target collecting neighbours, stopping at a bounce or a big gap.
-        for j in range(i, -1, -1):  # backwards incl. self
-            fj = int(frames[j])
-            if f0 - fj > window or crosses_bounce(fj, f0) or (prev - fj) > max_gap:
-                break
-            obs.append(_Obs((fj - f0) / fps, samples[j].px[0], samples[j].px[1],
-                            np.sqrt(max(samples[j].conf, 1e-3))))
-            prev = fj
-        prev = f0
-        for j in range(i + 1, len(samples)):
-            fj = int(frames[j])
-            if fj - f0 > window or crosses_bounce(f0, fj) or (fj - prev) > max_gap:
-                break
-            obs.append(_Obs((fj - f0) / fps, samples[j].px[0], samples[j].px[1],
-                            np.sqrt(max(samples[j].conf, 1e-3))))
-            prev = fj
-
-        anchors: list[tuple[float, float, float]] = []
-        for bf in bounce_frames:
-            if abs(bf - f0) <= window and not crosses_bounce(min(bf, f0), max(bf, f0)):
-                bx, by = bounce_world[bf]
-                anchors.append(((bf - f0) / fps, bx, by))
-
+    for s in samples:
         new = s.model_copy()
-        if len(obs) >= min_points:
-            fit = _fit_parabola(obs, anchors, camera.P)
-            if fit is not None:
-                m, rms = fit
-                if rms <= max_reproj_px:
-                    pos = m[:3]
-                    vel = np.array([m[3], m[4], m[5]])  # velocity at t = 0 (this frame)
-                    speed = float(np.linalg.norm(vel)) * FT_PER_S_TO_MPH
-                    new.world_ft = (float(pos[0]), float(pos[1]), float(max(pos[2], 0.0)))
-                    new.speed_mph = speed
+        est = _estimate_at(s.frame, samples, frames, bounce_frames, bounce_world, camera.P,
+                           fps, window, min_points, max_gap, max_reproj_px)
+        if est is not None:
+            pos, vel = est
+            new.world_ft = (float(pos[0]), float(pos[1]), float(max(pos[2], 0.0)))
+            new.speed_mph = float(np.linalg.norm(vel)) * FT_PER_S_TO_MPH
         out.append(new)
+    return out
+
+
+def fill_gaps_3d(
+    samples: list[BallSample],
+    bounces: list[Bounce],
+    camera: CameraModel,
+    fps: float,
+    max_fill_gap: int = 6,
+    window: int = 4,
+    min_points: int = 4,
+    max_reproj_px: float = 20.0,
+) -> list[BallSample]:
+    """Add physics-interpolated samples at frames *between* detections so the track is continuous.
+
+    For each missing frame inside a gap of at most ``max_fill_gap`` frames that does not cross a
+    bounce, fit the local gravity parabola (same machinery as :func:`reconstruct_3d`), evaluate the
+    3D position, and reproject it to pixels via ``camera``. Filled samples are flagged
+    ``interpolated=True`` with ``conf=0`` so analytics never treat a guess as a measurement.
+
+    Expects ``samples`` already enriched by :func:`reconstruct_3d`; returns measured + filled,
+    sorted by frame.
+    """
+    if not samples:
+        return []
+    samples = sorted(samples, key=lambda s: s.frame)
+    frames = np.array([s.frame for s in samples])
+    bounce_frames = sorted(b.frame for b in bounces)
+    bounce_world = _bounce_world(bounces)
+    bset = set(bounce_frames)
+
+    filled: list[BallSample] = []
+    for a, b in zip(frames[:-1], frames[1:]):
+        gap = int(b - a)
+        if gap <= 1 or gap > max_fill_gap:
+            continue  # adjacent, or too wide to interpolate safely
+        if any(a < bf < b for bf in bounce_frames):
+            continue  # a contact happened in this gap — don't blend two arcs
+        for f in range(int(a) + 1, int(b)):
+            if f in bset:
+                continue
+            est = _estimate_at(f, samples, frames, bounce_frames, bounce_world, camera.P,
+                               fps, window, min_points, max_fill_gap, max_reproj_px)
+            if est is None:
+                continue
+            pos, vel = est
+            x, y, z = float(pos[0]), float(pos[1]), float(max(pos[2], 0.0))
+            px = camera.project(np.array([[x, y, z]]))[0]
+            filled.append(BallSample(
+                frame=f,
+                px=(float(px[0]), float(px[1])),
+                court_xy=(x / WIDTH_FT, y / LENGTH_FT),
+                conf=0.0,
+                world_ft=(x, y, z),
+                speed_mph=float(np.linalg.norm(vel)) * FT_PER_S_TO_MPH,
+                interpolated=True,
+            ))
+    merged = samples + filled
+    merged.sort(key=lambda s: s.frame)
+    return merged
+
+
+def fill_gaps_2d_samples(samples: list[BallSample], max_fill_gap: int = 4) -> list[BallSample]:
+    """2D-only gap fill for the no-camera case: linearly interpolate pixels across short gaps.
+
+    Continuity for the overlay when 3D is unavailable. Bounded by ``max_fill_gap`` to avoid
+    hallucinating long stretches. Filled samples are flagged ``interpolated=True`` (no 3D/court).
+    """
+    from pbengine.ball.kalman import fill_gaps_2d
+
+    if len(samples) < 2:
+        return list(samples)
+    samples = sorted(samples, key=lambda s: s.frame)
+    frames = np.array([s.frame for s in samples])
+    xy = np.array([[s.px[0], s.px[1]] for s in samples], dtype=float)
+    out_f, out_xy, mask = fill_gaps_2d(frames, xy, max_fill_gap=max_fill_gap)
+
+    by_frame = {s.frame: s for s in samples}
+    out: list[BallSample] = []
+    for fr, p, is_fill in zip(out_f, out_xy, mask):
+        if is_fill:
+            out.append(BallSample(frame=int(fr), px=(float(p[0]), float(p[1])),
+                                  conf=0.0, interpolated=True))
+        else:
+            out.append(by_frame[int(fr)])
     return out
