@@ -62,6 +62,7 @@
         <button id="calUndo">Undo last</button>
         <button id="calReset">Reset</button>
         <button id="calSave" class="primary" disabled>Save &amp; re-analyze</button>
+        <button id="calDownload" disabled title="Save the clicked corners as corners.json for scripts/debug_3d.py">⬇ corners.json</button>
         <button id="calCancel">Cancel</button>
       </div>
     </div>
@@ -199,6 +200,7 @@ $("calibrate").onclick = async () => {
   $("calibration").style.display = "block";
   placed = {}; placedOrder = []; armed = null;
   $("calSave").disabled = true;
+  $("calDownload").disabled = true;
   calImg = new Image();
   calImg.onload = () => {
     const c = $("calCanvas");
@@ -260,8 +262,23 @@ $("calCanvas").onclick = (e) => {
   if (!placed[armed]) placedOrder.push(armed);
   placed[armed] = [x, y];
   armed = null;
-  $("calSave").disabled = Object.keys(placed).length < 4;
+  const enough = Object.keys(placed).length >= 4;
+  $("calSave").disabled = !enough;
+  $("calDownload").disabled = !enough;
   drawDiagram(); drawCal(); updateMsg();
+};
+
+// Export the clicked corners as corners.json (same format as the engine / debug_3d.py),
+// generated entirely client-side so it works even before "Save & re-analyze".
+$("calDownload").onclick = () => {
+  const clean = {};
+  for (const name in placed) clean[name] = [placed[name][0], placed[name][1]];
+  const blob = new Blob([JSON.stringify(clean, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "corners.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
 };
 
 $("calUndo").onclick = () => {
@@ -272,7 +289,8 @@ $("calUndo").onclick = () => {
 };
 $("calReset").onclick = () => {
   placed = {}; placedOrder = []; armed = null;
-  $("calSave").disabled = true; drawDiagram(); drawCal(); updateMsg();
+  $("calSave").disabled = true;
+  $("calDownload").disabled = true; drawDiagram(); drawCal(); updateMsg();
 };
 $("calCancel").onclick = () => { $("calibration").style.display = "none"; };
 

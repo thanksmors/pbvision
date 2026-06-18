@@ -94,6 +94,16 @@ def video_path(job_id: str) -> Path | None:
     return next(job_dir(job_id).glob("input.*"), None)
 
 
+def corners_path(job_id: str) -> Path | None:
+    """Path to the saved manual-calibration corners (``court.json``), if it exists.
+
+    Same ``{name: [x, y]}`` format ``scripts/debug_3d.py --court-corners`` and the engine's
+    ``ManualCourtDetector`` consume, so the UI can hand it back as a downloadable ``corners.json``.
+    """
+    path = job_dir(job_id) / "court.json"
+    return path if path.exists() else None
+
+
 def first_frame_jpeg(job_id: str) -> bytes | None:
     """Encode the job video's first frame as JPEG for the calibration UI."""
     import cv2

@@ -72,6 +72,18 @@ def calibrate_court(job_id: str, landmarks: dict[str, list[float]]) -> dict[str,
     return {"job_id": job_id}
 
 
+@app.get("/api/matches/{job_id}/court.json")
+def download_corners(job_id: str) -> FileResponse:
+    """Return the saved calibration corners as a downloadable ``corners.json``.
+
+    Lets the UI export the clicked court points for use with ``scripts/debug_3d.py``.
+    """
+    path = jobs.corners_path(job_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="no calibration saved for this match yet")
+    return FileResponse(path, media_type="application/json", filename="corners.json")
+
+
 @app.get("/api/court-landmarks")
 def court_landmarks() -> JSONResponse:
     """The named pickleball reference landmarks (normalized court coords) for the UI diagram."""
