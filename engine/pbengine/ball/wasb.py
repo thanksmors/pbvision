@@ -29,7 +29,7 @@ _SUBMODULE = Path(__file__).resolve().parents[1] / "third_party" / "WASB-SBDT"
 _SRC = _SUBMODULE / "src"
 _MODEL_W, _MODEL_H = 512, 288
 _FRAMES_IN = 3
-_STEP = 3  # non-overlapping windows (WASB detector.step=3)
+_DEFAULT_STEP = 1  # overlapping windows: every frame gets up to _FRAMES_IN detection attempts
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
@@ -84,7 +84,9 @@ def _import_wasb():
     return hrnet, postprocessor, online, get_affine_transform
 
 
-def _build_cfg(yaml_path: Path) -> _DotDict:
+def _build_cfg(
+    yaml_path: Path, score_threshold: float = 0.3, max_disp: float = 300.0
+) -> _DotDict:
     import yaml
 
     model_cfg = yaml.safe_load(yaml_path.read_text())
@@ -94,22 +96,35 @@ def _build_cfg(yaml_path: Path) -> _DotDict:
             "detector": {
                 "postprocessor": {
                     "name": "tracknetv2",
-                    "score_threshold": 0.5,
+                    "score_threshold": score_threshold,
                     "scales": [0],
                     "blob_det_method": "concomp",
                     "use_hm_weight": True,
                 }
             },
             "dataloader": {"heatmap": {"sigmas": [2.5]}},
-            "tracker": {"max_disp": 300},
+            "tracker": {"max_disp": max_disp},
         }
     )
 
 
 class WasbBall:
-    """Loaded WASB model + postprocessor + online tracker, ready to infer a video."""
+    """Loaded WASB model + postprocessor + online tracker, ready to infer a video.
 
-    def __init__(self, weights: str, device: str | None = None):
+    ``score_threshold`` (heatmap blob acceptance), ``max_disp`` (online-tracker gating, px), and
+    ``step`` (window stride) are tunable. ``step < _FRAMES_IN`` runs **overlapping** windows so each
+    frame gets up to ``_FRAMES_IN`` detection attempts with different temporal context, fused by the
+    online tracker — higher recall at ~``_FRAMES_IN / step`` times the compute.
+    """
+
+    def __init__(
+        self,
+        weights: str,
+        device: str | None = None,
+        score_threshold: float = 0.3,
+        max_disp: float = 300.0,
+        step: int = _DEFAULT_STEP,
+    ):
         import torch
 
         hrnet, postprocessor, online, get_affine_transform = _import_wasb()
@@ -120,8 +135,13 @@ class WasbBall:
         self._torch = torch
         self._get_affine = get_affine_transform
         self._device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self._step = max(1, min(int(step), _FRAMES_IN))
 
-        cfg = _build_cfg(_SRC / "configs" / "model" / "wasb.yaml")
+        cfg = _build_cfg(
+            _SRC / "configs" / "model" / "wasb.yaml",
+            score_threshold=score_threshold,
+            max_disp=max_disp,
+        )
         model = hrnet.HRNet(cfg["model"])
         ckpt = torch.load(weights, map_location=self._device)
         state = ckpt.get("model_state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
@@ -146,9 +166,16 @@ class WasbBall:
     def infer_video(self, video_path: str) -> list[tuple[int, float, float, float]]:
         """Return ``(frame, x, y, conf)`` ball detections in source-pixel coords.
 
-        Frames are streamed in non-overlapping windows of ``_FRAMES_IN`` rather than decoded
-        all at once: a full clip in RAM is tens of GB (a 1080p frame is ~6 MB, so a few
-        minutes at 30 fps OOM-kills the process). Memory now stays flat regardless of length.
+        Two passes:
+
+        1. **Detect** — stream frames through a sliding window of ``_FRAMES_IN``, stepping by
+           ``self._step``. With ``step < _FRAMES_IN`` the windows overlap, so a frame is scored in
+           several windows (different temporal context); all candidate blobs are pooled per frame.
+        2. **Track** — replay the pooled candidates through the stateful online tracker **in frame
+           order**, so overlapping detections are fused consistently rather than corrupting it.
+
+        Frames are streamed (never all decoded at once — a full 1080p clip is tens of GB), so
+        memory stays flat; only the tiny per-frame candidate lists are retained.
         """
         import cv2
 
@@ -156,7 +183,6 @@ class WasbBall:
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
             raise FileNotFoundError(f"cannot open video: {video_path}")
-
         ok, first = cap.read()
         if not ok:
             cap.release()
@@ -169,38 +195,54 @@ class WasbBall:
         trans_inv = self._get_affine(c, s, 0, [_MODEL_W, _MODEL_H], inv=1)
         affine_mats = {0: torch.tensor(trans_inv).unsqueeze(0)}
 
-        self._tracker.refresh()
-        raw: list[tuple[int, float, float, float]] = []
-        buf = [first]
-        start = 0
-        while buf:
-            while len(buf) < _FRAMES_IN:
-                ok, fr = cap.read()
-                if not ok:
-                    break
-                buf.append(fr)
-            n_real = len(buf)  # real (non-padded) frames in this window
-            window = [buf[min(k, n_real - 1)] for k in range(_FRAMES_IN)]
-            imgs = self._preprocess(window, trans_in)
+        # Pass 1: pooled candidate blobs per frame.
+        candidates: dict[int, list[tuple[np.ndarray, float]]] = {}
+
+        def run_window(window_frames, start, n_real):
+            imgs = self._preprocess(window_frames, trans_in)
             with torch.no_grad():
                 preds = self._model(imgs)
             results = self._pp.run({0: preds[0]}, affine_mats)  # results[bid][eid][scale]
             for eid in sorted(results[0].keys()):
-                dets = [
-                    {"xy": xy, "score": sc}
-                    for xy, sc in zip(results[0][eid][0]["xys"], results[0][eid][0]["scores"])
-                ]
-                out = self._tracker.update(dets)
-                if out["visi"] and eid < n_real:  # skip padded tail frames
-                    raw.append((start + eid, float(out["x"]), float(out["y"]), float(out["score"])))
-            if n_real < _FRAMES_IN:
-                break  # reached end of stream
-            start += _STEP
-            ok, fr = cap.read()  # seed the next non-overlapping window
-            if not ok:
+                if eid >= n_real:
+                    continue  # padded tail frame
+                fidx = start + eid
+                bucket = candidates.setdefault(fidx, [])
+                res = results[0][eid][0]
+                for xy, sc in zip(res["xys"], res["scores"]):
+                    bucket.append((np.asarray(xy, dtype=float), float(sc)))
+
+        buf = [first]
+        start = 0
+        n = 1
+        eof = False
+        while True:
+            while len(buf) < _FRAMES_IN and not eof:
+                ok, fr = cap.read()
+                if not ok:
+                    eof = True
+                    break
+                buf.append(fr)
+                n += 1
+            if not buf:
                 break
-            buf = [fr]
+            n_real = len(buf)
+            window = [buf[min(k, n_real - 1)] for k in range(_FRAMES_IN)]
+            run_window(window, start, n_real)
+            if n_real < _FRAMES_IN:
+                break  # processed the final (padded) window
+            del buf[: self._step]
+            start += self._step
         cap.release()
+
+        # Pass 2: sequential online tracking over the pooled candidates.
+        self._tracker.refresh()
+        raw: list[tuple[int, float, float, float]] = []
+        for fidx in range(n):
+            dets = [{"xy": xy, "score": sc} for xy, sc in candidates.get(fidx, [])]
+            out = self._tracker.update(dets)
+            if out["visi"]:
+                raw.append((fidx, float(out["x"]), float(out["y"]), float(out["score"])))
 
         # Blob scores are unbounded; normalize to [0, 1] so they satisfy the BallSample schema.
         if raw:

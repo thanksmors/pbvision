@@ -26,6 +26,18 @@ else
   echo "    Ball weights already present at $BALL_WEIGHTS."
 fi
 
+# Badminton weights as an A/B alternative — pickleball's ball size/speed sits between tennis and
+# badminton. Compare coverage on your own footage with: scripts/debug_ball.py --sweep
+BADMINTON_WEIGHTS="$MODELS/wasb_badminton_best.pth.tar"
+if [ ! -f "$BADMINTON_WEIGHTS" ]; then
+  echo "    Fetching WASB badminton weights via gdown (for A/B)..."
+  python -m gdown 17Ac0pO5oryh1JwgwTFQTjOKHY3umbDQu -O "$BADMINTON_WEIGHTS" || \
+    echo "    !! gdown failed. Optional: download WASB (Badminton) from MODEL_ZOO.md to
+       $BADMINTON_WEIGHTS to A/B against tennis."
+else
+  echo "    Badminton weights already present at $BADMINTON_WEIGHTS."
+fi
+
 echo "==> Court detector: TennisCourtDetector (vendored as a git submodule)"
 git submodule update --init "$THIRD_PARTY/TennisCourtDetector" 2>/dev/null || \
   { [ -d "$THIRD_PARTY/TennisCourtDetector" ] || \

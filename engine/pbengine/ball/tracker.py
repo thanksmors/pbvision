@@ -29,13 +29,24 @@ class BallTracker:
     weights: str = str(_DEFAULT_WEIGHTS)
     max_px_per_frame: float = 150.0
     device: str | None = None
+    # WASB detector knobs (see pbengine.ball.wasb.WasbBall). Defaults favour recall: a lower blob
+    # threshold and overlapping windows (step=1) so each frame gets up to 3 detection attempts.
+    score_threshold: float = 0.3
+    max_disp: float = 300.0
+    step: int = 1
     _model: object = field(default=None, repr=False)
 
     def _ensure_model(self) -> None:
         if self._model is None:
             from pbengine.ball.wasb import WasbBall  # lazy: pulls torch + the submodule
 
-            self._model = WasbBall(self.weights, device=self.device)
+            self._model = WasbBall(
+                self.weights,
+                device=self.device,
+                score_threshold=self.score_threshold,
+                max_disp=self.max_disp,
+                step=self.step,
+            )
 
     def _raw_detections(
         self, video_path: str | Path, stride: int
