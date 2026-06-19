@@ -26,6 +26,12 @@
     .stage.ok { background: #eafaef; border-color: #9d9; }
     .stage.skip { background: #fde7e7; border-color: #e99; }
     .stage b { font-weight: 600; }
+    #gapbar { position: relative; height: 10px; margin-top: 2px; border-radius: 3px;
+              background: #1116; line-height: normal; display: none; }
+    #gapbar .gap { position: absolute; top: 0; height: 100%; min-width: 2px;
+                   background: rgba(239,68,68,.9); cursor: pointer; border-radius: 2px; }
+    #gapbar .gap:hover { background: #ef4444; outline: 1px solid #fff; }
+    .badge.gap { background: #fde2e2; color: #b91c1c; }
   </style>
   <script type="importmap">
   {"imports":{
@@ -76,6 +82,8 @@
       <video id="video" controls playsinline></video>
       <canvas id="overlay"></canvas>
     </div>
+    <!-- Red ticks mark unbridged ball drop-outs in the active point; click one to jump there. -->
+    <div id="gapbar" title="Ball-tracking gaps in the selected point — click a tick to jump"></div>
 
     <div id="panel3d" style="display:none; margin-top:1rem;">
       <h2 style="font-size:1.05rem; margin-bottom:.2rem;">3D ball trajectory</h2>
@@ -152,6 +160,20 @@ function point3d(p) {
   return has ? { topSpeed, peakHeight } : null;
 }
 
+// Unbridged ball drop-outs in a point's trajectory. The trajectory array already includes the
+// physics-filled (interpolated) samples, so any remaining frame-delta > 1 is a *true* gap the
+// tracker never recovered — exactly the moments to investigate. Returns [{from, to, len}] (len =
+// missing frames).
+function ballGaps(p) {
+  const t = (p && p.ball_trajectory) || [];
+  const gaps = [];
+  for (let j = 1; j < t.length; j++) {
+    const d = t[j].frame - t[j - 1].frame;
+    if (d > 1) gaps.push({ from: t[j - 1].frame, to: t[j].frame, len: d - 1 });
+  }
+  return gaps;
+}
+
 function match3d() {
   let topSpeed = 0, peakHeight = 0, has = false;
   for (const p of (MATCH.points || [])) {
@@ -213,11 +235,16 @@ function renderPoints() {
     const review = p.needs_review ? '<span class="badge review">review</span>' : "";
     const st = point3d(p);
     const d3 = st ? `<span class="muted">· ⚡${Math.round(st.topSpeed)} mph · ↑${st.peakHeight.toFixed(1)} ft</span>` : "";
+    const gaps = ballGaps(p);
+    const maxGap = gaps.reduce((m, g) => Math.max(m, g.len), 0);
+    const gapBadge = gaps.length
+      ? `<span class="badge gap" title="${gaps.length} unbridged ball drop-out(s); longest ${maxGap} frames">⚠ ${gaps.length} gap${gaps.length > 1 ? "s" : ""}</span>`
+      : "";
     div.innerHTML = `
       <span>#${p.point_index + 1} · frames ${p.start_frame}–${p.end_frame}
         <span class="muted">· serve ${p.serve ? p.serve.server_team + "/" + p.serve.server_side : "—"}</span> ${d3}</span>
       <span><span class="win">${winner}</span> <span class="muted">(${p.win_reason})</span>
-        <span class="badge">${Math.round(p.confidence * 100)}%</span> ${review}</span>`;
+        <span class="badge">${Math.round(p.confidence * 100)}%</span> ${gapBadge} ${review}</span>`;
     div.onclick = () => selectPoint(i);
     box.appendChild(div);
   });
@@ -377,6 +404,29 @@ function selectPoint(i) {
   $("video").currentTime = MATCH.points[i].start_frame / fps;
   drawPoint(i);
   update3dPanel(i);
+  renderGapBar(i);
+}
+
+// Red ticks on the strip under the scrubber, one per unbridged drop-out in the active point,
+// positioned across the full video timeline so they line up with the native <video> scrubber.
+function renderGapBar(i) {
+  const bar = $("gapbar");
+  bar.innerHTML = "";
+  const p = MATCH.points[i];
+  const total = (MATCH.video && MATCH.video.frames) || 0;
+  const fps = MATCH.video.fps || 30;
+  const gaps = p ? ballGaps(p) : [];
+  bar.style.display = gaps.length ? "block" : "none";
+  if (!gaps.length || !total) return;
+  for (const g of gaps) {
+    const tick = document.createElement("div");
+    tick.className = "gap";
+    tick.style.left = (g.from / total * 100) + "%";
+    tick.style.width = Math.max(0.4, (g.to - g.from) / total * 100) + "%";
+    tick.title = `gap: ${g.len} frames (${(g.len / fps).toFixed(1)}s) at frame ${g.from}`;
+    tick.onclick = () => { $("video").currentTime = g.from / fps; };
+    bar.appendChild(tick);
+  }
 }
 
 // Show the rotatable three.js view for the selected point (hidden when it has no 3D lift).
@@ -441,6 +491,22 @@ function players3dAtFrame(frame) {
   return out;
 }
 
+// Nearest 3D ball sample to a frame, plus a short trail of preceding 3D points for motion. Returns
+// null when nothing with world_ft is within tolerance — i.e. the ball is dropped out right now, so
+// the 3D marker disappears at exactly the untracked moments.
+function ballAtFrame(traj, frame, tol = 4) {
+  const pts = (traj || []).filter((s) => s.world_ft);
+  if (!pts.length) return null;
+  let cur = null, bestD = Infinity, ci = -1;
+  pts.forEach((s, j) => {
+    const d = Math.abs(s.frame - frame);
+    if (d < bestD) { bestD = d; cur = s; ci = j; }
+  });
+  if (!cur || bestD > tol) return null;
+  const trail = pts.slice(Math.max(0, ci - 8), ci + 1).map((s) => s.world_ft);
+  return { world_ft: cur.world_ft, speed_mph: cur.speed_mph, interpolated: cur.interpolated, trail };
+}
+
 function drawSkeleton(ctx, c, pos) {
   if (!pos.pose_px) return;
   const cf = pos.pose_conf || pos.pose_px.map(() => 1);
@@ -478,9 +544,12 @@ function drawPoint(i) {
   const fps = MATCH.video.fps || 30;
   const curFrame = $("video").currentTime * fps;
   drawPlayers(ctx, c, curFrame);
-  // Keep the 3D skeletons in sync with playback (only when the 3D panel is open).
-  if (window.renderPlayers3d && $("panel3d").style.display !== "none") {
-    window.renderPlayers3d(players3dAtFrame(curFrame));
+  // Keep the 3D skeletons + live ball marker in sync with playback (only when the 3D panel is open).
+  if ($("panel3d").style.display !== "none") {
+    if (window.renderPlayers3d) window.renderPlayers3d(players3dAtFrame(curFrame));
+    if (window.renderBall3d && i >= 0 && MATCH.points[i]) {
+      window.renderBall3d(ballAtFrame(MATCH.points[i].ball_trajectory, curFrame));
+    }
   }
 
   // Full court outline, projected through the homography (court_quad_px already in draw order:
@@ -697,6 +766,28 @@ window.renderPlayers3d = function (framePlayers) {
       scene.add(m); dynPlayers.push(m);
     }
   }
+};
+
+// Live ball marker that rides the static arc and follows playback. `ball` is null during a
+// drop-out, so the marker simply disappears at the untracked moments (the whole point — you can
+// rotate the view and watch exactly where tracking is lost). Mirrors renderPlayers3d.
+const BALL_COLD = new THREE.Color(0x3b82f6), BALL_HOT = new THREE.Color(0xef4444);
+let dynBall = [];
+window.renderBall3d = function (ball) {
+  if (!renderer) return;  // 3D scene not built yet
+  for (const o of dynBall) scene.remove(o);
+  dynBall = [];
+  if (!ball) return;      // drop-out: no marker this frame
+  if (ball.trail && ball.trail.length > 1) {
+    dynBall.push(line(ball.trail.map((w) => P(w[0], w[1], w[2])), 0xfde68a, 0.5));
+  }
+  const col = ball.interpolated
+    ? new THREE.Color(0x9aa4af)
+    : BALL_COLD.clone().lerp(BALL_HOT, Math.min(1, (ball.speed_mph || 0) / 60));
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 16),
+    new THREE.MeshBasicMaterial({ color: col, transparent: ball.interpolated, opacity: ball.interpolated ? 0.6 : 1 }));
+  m.position.copy(P(ball.world_ft[0], ball.world_ft[1], ball.world_ft[2]));
+  scene.add(m); dynBall.push(m);
 };
 </script>
 </body>
