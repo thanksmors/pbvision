@@ -485,8 +485,11 @@ function players3dAtFrame(frame) {
       const d = Math.abs(pos.frame - frame);
       if (d < bestD) { bestD = d; best = pos; }
     }
-    if (!best || bestD > 15 || !best.pose_world_ft) continue;
-    out.push({ pose: best.pose_world_ft, conf: best.pose_conf, paddle: best.paddle_world_ft });
+    if (!best || bestD > 15) continue;
+    // Always emit the foot (normalized court_xy) so a null/degenerate 3D lift falls back to a
+    // standing stick instead of the skeleton vanishing.
+    out.push({ pose: best.pose_world_ft || null, conf: best.pose_conf,
+               paddle: best.paddle_world_ft, footCourt: best.court_xy });
   }
   return out;
 }
@@ -503,9 +506,21 @@ function ballAtFrame(traj, frame, tol = 4) {
     if (d < bestD) { bestD = d; cur = s; ci = j; }
   });
   if (!cur || bestD > tol) return null;
-  const trail = pts.slice(Math.max(0, ci - 8), ci + 1).map((s) => s.world_ft);
+  const trail = pts.slice(Math.max(0, ci - 15), ci + 1).map((s) => s.world_ft);  // ~0.5s tail
   return { world_ft: cur.world_ft, speed_mph: cur.speed_mph, interpolated: cur.interpolated, trail };
 }
+
+// Advance the 3D ball + skeletons to the current video frame. The three.js render loop calls this
+// every animation frame (~60fps) so playback is smooth and rotation stays live; a cheap no-op when
+// the 3D panel is hidden or no point is selected.
+window.update3dDynamic = function () {
+  if (!MATCH || ACTIVE < 0 || $("panel3d").style.display === "none" || !window.renderPlayers3d) return;
+  const fps = MATCH.video.fps || 30;
+  const curFrame = $("video").currentTime * fps;
+  window.renderPlayers3d(players3dAtFrame(curFrame));
+  const p = MATCH.points[ACTIVE];
+  if (window.renderBall3d && p) window.renderBall3d(ballAtFrame(p.ball_trajectory, curFrame));
+};
 
 function drawSkeleton(ctx, c, pos) {
   if (!pos.pose_px) return;
@@ -544,13 +559,8 @@ function drawPoint(i) {
   const fps = MATCH.video.fps || 30;
   const curFrame = $("video").currentTime * fps;
   drawPlayers(ctx, c, curFrame);
-  // Keep the 3D skeletons + live ball marker in sync with playback (only when the 3D panel is open).
-  if ($("panel3d").style.display !== "none") {
-    if (window.renderPlayers3d) window.renderPlayers3d(players3dAtFrame(curFrame));
-    if (window.renderBall3d && i >= 0 && MATCH.points[i]) {
-      window.renderBall3d(ballAtFrame(MATCH.points[i].ball_trajectory, curFrame));
-    }
-  }
+  // The 3D ball + skeletons are advanced every animation frame by the three.js render loop
+  // (window.update3dDynamic), so they stay smooth during playback and rotatable mid-play.
 
   // Full court outline, projected through the homography (court_quad_px already in draw order:
   // a_left, a_right, b_right, b_left) — shows the whole court even where a corner is off-frame.
@@ -696,29 +706,18 @@ function init3d() {
     cam.aspect = host.clientWidth / host.clientHeight; cam.updateProjectionMatrix();
     renderer.setSize(host.clientWidth, host.clientHeight);
   }).observe(host);
-  (function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, cam); })();
+  (function loop(){ requestAnimationFrame(loop); controls.update();
+    if (window.update3dDynamic) window.update3dDynamic();
+    renderer.render(scene, cam); })();
 }
 
 window.render3d = function (traj, bounces) {
   if (!renderer) init3d();
   for (const o of dyn) scene.remove(o);
   dyn = [];
-  const cold = new THREE.Color(0x3b82f6), hot = new THREE.Color(0xef4444);
-  const pts = (traj || []).filter((s) => s.world_ft);
-  let maxmph = 1;
-  for (const s of pts) if (!s.interpolated && s.speed_mph) maxmph = Math.max(maxmph, s.speed_mph);
-  const path = pts.map((s) => P(s.world_ft[0], s.world_ft[1], s.world_ft[2]));
-  if (path.length > 1) dyn.push(line(path, 0x30363d, 0.6));
-  for (const s of pts) {
-    let col;
-    if (s.interpolated) col = new THREE.Color(0x9aa4af);
-    else col = cold.clone().lerp(hot, Math.min(1, (s.speed_mph || 0) / maxmph));
-    const r = s.interpolated ? 0.14 : 0.22;
-    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12),
-      new THREE.MeshBasicMaterial({ color: col, transparent: s.interpolated, opacity: s.interpolated ? 0.5 : 1 }));
-    m.position.copy(P(s.world_ft[0], s.world_ft[1], s.world_ft[2]));
-    scene.add(m); dyn.push(m);
-  }
+  // The ball itself is drawn by the live marker + short trail (renderBall3d) as the video plays —
+  // we deliberately do NOT paint the whole static arc here. Only the bounce contacts are kept as
+  // ground context.
   for (const b of (bounces || [])) {
     if (!b.court_xy) continue;
     const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12),
@@ -742,11 +741,14 @@ window.renderPlayers3d = function (framePlayers) {
   const COL = 0x50dc78;
   for (const fp of (framePlayers || [])) {
     const kp = fp.pose;
-    if (!kp) continue;
-    const zmax = Math.max(...kp.map((p) => p[2]));
-    if (!isFinite(zmax) || zmax < 1.0) {
-      // Degenerate/collapsed monocular lift -> stand a vertical stick at the foot point.
-      const ax = (kp[15][0] + kp[16][0]) / 2, ay = (kp[15][1] + kp[16][1]) / 2;
+    const zmax = kp ? Math.max(...kp.map((p) => p[2])) : NaN;
+    if (!kp || !isFinite(zmax) || zmax < 1.0) {
+      // No / degenerate / collapsed monocular lift -> stand a vertical stick at the foot point so
+      // the player never disappears in 3D. Foot from keypoints if present, else the court_xy foot.
+      let ax, ay;
+      if (kp) { ax = (kp[15][0] + kp[16][0]) / 2; ay = (kp[15][1] + kp[16][1]) / 2; }
+      else if (fp.footCourt) { ax = fp.footCourt[0] * W; ay = fp.footCourt[1] * L; }
+      else continue;
       dynPlayers.push(line([P(ax, ay, 0), P(ax, ay, 5.5)], COL, 0.9));
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 10),
         new THREE.MeshBasicMaterial({ color: COL }));

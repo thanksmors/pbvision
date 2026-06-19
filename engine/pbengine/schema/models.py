@@ -106,6 +106,10 @@ class PlayerPosition(BaseModel):
     paddle_world_ft: tuple[float, float, float] | None = Field(
         None, description="paddle tip in 3D court feet (None if no camera)"
     )
+    interpolated: bool = Field(
+        False, description="True if this position was linearly interpolated to bridge a short "
+        "detection gap (so skeletons stay continuous); measured detections are False."
+    )
 
 
 class Player(BaseModel):

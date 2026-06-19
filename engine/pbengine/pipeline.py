@@ -96,7 +96,8 @@ def analyze_match(
 
     report("players", 0.3)
     players = _skip_if_unavailable(
-        "players", warnings, [], _track_players, video_path, homography, player_detector, camera
+        "players", warnings, [], _track_players, video_path, homography, player_detector, camera,
+        meta.fps,
     )
 
     report("ball", 0.6)
@@ -159,7 +160,8 @@ def _solve_court(
 
 
 def _track_players(
-    video_path: Path, homography: np.ndarray | None, detector: PlayerDetector, camera=None
+    video_path: Path, homography: np.ndarray | None, detector: PlayerDetector, camera=None,
+    fps: float = 30.0,
 ) -> list[Player]:
     """Track players, project feet to court coords, lift pose to 3D, and assign teams by side."""
     from pbengine.court.homography import project
@@ -197,10 +199,14 @@ def _track_players(
         if homography is not None:
             side_votes[t.track_id].append(side_of(court_xy))
 
+    from pbengine.players.interpolate import interpolate_positions
+
     players: list[Player] = []
     for tid, positions in by_id.items():
         votes = side_votes.get(tid, [])
         team = Team(max(set(votes), key=votes.count)) if votes else None
+        # Bridge short detection dropouts so the skeleton stays continuous in the viewer.
+        positions = interpolate_positions(positions, fps)
         players.append(Player(track_id=tid, team=team, positions=positions))
     return players
 
@@ -235,6 +241,8 @@ def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point
         serve = detect_serve(measured)
         winner, reason, conf = determine_winner(bounces, measured)
         # The stored trajectory is enriched (3D) and gap-filled for a continuous overlay.
+        from pbengine.ball.trajectory3d import densify_rally
+
         if camera is not None:
             from pbengine.ball.trajectory3d import fill_gaps_3d, reconstruct_3d_segments
 
@@ -248,6 +256,9 @@ def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point
             from pbengine.ball.trajectory3d import clean_2d_samples
 
             traj = clean_2d_samples(measured)
+        # Backstop: the physics/2D fills only bridge short within-arc gaps. Linearly fill every frame
+        # still missing in the rally span so the stored track is complete for downstream analysis.
+        traj = densify_rally(traj, span.start_frame, span.end_frame, bounces, camera, fps)
         points.append(
             Point(
                 point_index=i,

@@ -17,6 +17,7 @@ from pbengine.ball.trajectory3d import (
     _Obs,
     _fit_parabola,
     _segment_bounds,
+    densify_rally,
     fill_gaps_3d,
     reconstruct_3d,
     reconstruct_3d_segments,
@@ -264,3 +265,44 @@ def test_no_camera_or_short_track_is_safe():
     out = reconstruct_3d(short, bounces=[], camera=cam, fps=30.0)
     assert all(s.world_ft is None and s.speed_mph is None for s in out)
     assert reconstruct_3d([], bounces=[], camera=cam, fps=30.0) == []
+
+
+def test_densify_rally_fills_every_frame_in_span():
+    # A wide gap (frames 5..25 missing) that fill_gaps_3d would never bridge. densify must fill it.
+    traj = [BallSample(frame=f, px=(100.0 + 10 * f, 200.0 + 5 * f),
+                       court_xy=(0.1, 0.2), world_ft=(1.0 + f, 2.0, 3.0), speed_mph=20.0)
+            for f in [0, 1, 2, 3, 4, 25, 26, 27, 28]]
+    out = densify_rally(traj, start_frame=0, end_frame=28, bounces=[], camera=None, fps=30.0)
+    frames = [s.frame for s in out]
+    assert frames == list(range(29))  # no hole anywhere in the span
+    fills = [s for s in out if s.interpolated]
+    assert {s.frame for s in fills} == set(range(5, 25))
+    # Linear interp carried px + world_ft + court_xy across the gap, flagged interpolated/conf 0.
+    mid = next(s for s in out if s.frame == 15)
+    assert mid.interpolated and mid.conf == 0.0
+    assert mid.world_ft is not None and mid.court_xy is not None
+    assert abs(mid.world_ft[0] - 16.0) < 1e-6  # linear between f4 (x=5) and f25 (x=26) at t=11/21
+    # measured endpoints untouched
+    assert not out[0].interpolated and not out[28].interpolated
+
+
+def test_densify_rally_anchors_bounce_at_floor():
+    p_gt = _lookat_camera()
+    cam = recover_camera(_homography_from_camera(p_gt), W, H)
+    # Detections either side of a gap that contains a bounce at frame 10 (mid-court).
+    fids = [4, 5, 6, 16, 17, 18]
+    traj = []
+    for f in fids:
+        X, Y, Z = 8.0, 10.0 + 0.5 * f, 4.0
+        px = cam.project(np.array([[X, Y, Z]]))[0]
+        traj.append(BallSample(frame=f, px=(float(px[0]), float(px[1])),
+                               court_xy=(X / WIDTH_FT, Y / LENGTH_FT), world_ft=(X, Y, Z)))
+    bounces = [Bounce(frame=10, court_xy=(0.4, 0.4), side=Team.A, in_bounds=True)]
+    out = densify_rally(traj, start_frame=4, end_frame=18, bounces=bounces, camera=cam, fps=30.0)
+    assert [s.frame for s in out] == list(range(4, 19))  # complete
+    bounce_s = next(s for s in out if s.frame == 10)
+    assert bounce_s.world_ft is not None and abs(bounce_s.world_ft[2]) < 1e-6  # anchored to floor
+    # The fill dips toward the floor around the bounce rather than straight-lining over it.
+    z9 = next(s for s in out if s.frame == 9).world_ft[2]
+    z11 = next(s for s in out if s.frame == 11).world_ft[2]
+    assert z9 < 4.0 and z11 < 4.0

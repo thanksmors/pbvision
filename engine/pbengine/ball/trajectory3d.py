@@ -469,3 +469,70 @@ def fill_gaps_2d_samples(samples: list[BallSample], max_fill_gap: int = 4) -> li
         else:
             out.append(by_frame[int(fr)])
     return out
+
+
+def densify_rally(
+    traj: list[BallSample],
+    start_frame: int,
+    end_frame: int,
+    bounces: list[Bounce],
+    camera: CameraModel | None,
+    fps: float,
+) -> list[BallSample]:
+    """Guarantee a ball sample at **every** frame in ``[start_frame, end_frame]``.
+
+    The physics/2D fills (:func:`fill_gaps_3d` / :func:`clean_2d_samples`) only bridge short
+    within-arc gaps; any wider miss is left as a hole, so the stored track is incomplete. Downstream
+    data analysis expects a value per frame, so this linearly interpolates every *still-missing*
+    frame in the rally span between its two bounding samples — ``px`` always, ``court_xy`` /
+    ``world_ft`` / ``speed_mph`` when both ends carry them. Fills are flagged ``interpolated=True``
+    with ``conf=0`` (measured-only stats already ignore them). A rally is run separately, so this
+    never bridges across a rally split.
+
+    When a bounce falls inside a gap, an anchor at the bounce (``z=0``) is inserted so a long fill
+    dips to the floor instead of cutting a straight line through the court.
+    """
+    if not traj:
+        return traj
+    knots = sorted(traj, key=lambda s: s.frame)
+    present = {s.frame for s in knots}
+
+    # Ground anchors at bounce frames that landed inside a gap (needs the camera to get the pixel).
+    if camera is not None:
+        for b in bounces:
+            if b.frame in present or not (start_frame < b.frame < end_frame):
+                continue
+            X, Y = b.court_xy[0] * WIDTH_FT, b.court_xy[1] * LENGTH_FT
+            px = camera.project(np.array([[X, Y, 0.0]]))[0]
+            knots.append(BallSample(
+                frame=int(b.frame), px=(float(px[0]), float(px[1])),
+                court_xy=(float(b.court_xy[0]), float(b.court_xy[1])), conf=0.0,
+                world_ft=(float(X), float(Y), 0.0), interpolated=True,
+            ))
+            present.add(b.frame)
+        knots.sort(key=lambda s: s.frame)
+
+    fills: list[BallSample] = []
+    for a, c in zip(knots, knots[1:]):
+        span = c.frame - a.frame
+        for f in range(a.frame + 1, c.frame):
+            if f in present:
+                continue
+            t = (f - a.frame) / span
+            px = (a.px[0] + t * (c.px[0] - a.px[0]), a.px[1] + t * (c.px[1] - a.px[1]))
+            court = world = speed = None
+            if a.court_xy is not None and c.court_xy is not None:
+                court = (a.court_xy[0] + t * (c.court_xy[0] - a.court_xy[0]),
+                         a.court_xy[1] + t * (c.court_xy[1] - a.court_xy[1]))
+            if a.world_ft is not None and c.world_ft is not None:
+                world = tuple(a.world_ft[k] + t * (c.world_ft[k] - a.world_ft[k]) for k in range(3))
+            if a.speed_mph is not None and c.speed_mph is not None:
+                speed = a.speed_mph + t * (c.speed_mph - a.speed_mph)
+            fills.append(BallSample(
+                frame=f, px=(float(px[0]), float(px[1])), court_xy=court, conf=0.0,
+                world_ft=world, speed_mph=speed, interpolated=True,
+            ))
+
+    out = knots + fills
+    out.sort(key=lambda s: s.frame)
+    return out
