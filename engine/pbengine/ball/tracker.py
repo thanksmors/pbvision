@@ -30,7 +30,15 @@ _DEFAULT_WEIGHTS = Path(__file__).resolve().parents[1] / "models" / "wasb_badmin
 @dataclass
 class BallTracker:
     weights: str = str(_DEFAULT_WEIGHTS)
-    max_px_per_frame: float = 150.0
+    # Jump gate: drop detections implying an impossible per-frame pixel speed. A fast pickleball
+    # is genuinely fast — ~520 px/frame (40 mph) to ~650 px/frame (50 mph) at 1080p/30fps — so a
+    # fixed 150 (tennis/badminton-era) silently discarded real fast balls. The bound is therefore
+    # frame-relative: ``max_jump_frac * max(w, h)`` (~960 px at 1080p ⇒ ~74 mph headroom) while
+    # still rejecting full-frame scene-cut teleports. ``max_px_per_frame`` overrides it when set.
+    # Fine outlier rejection is now the per-segment RANSAC fit (pbengine.ball.trajectory3d), so the
+    # coarse gate only needs to kill gross teleports — safe to loosen.
+    max_px_per_frame: float | None = None
+    max_jump_frac: float = 0.5
     device: str | None = None
     # WASB detector knobs (see pbengine.ball.wasb.WasbBall). Defaults favour recall: a low blob
     # threshold and overlapping windows (step=1) so each frame gets up to 3 detection attempts.
@@ -41,6 +49,26 @@ class BallTracker:
     max_disp: float = 300.0
     step: int = 1
     _model: object = field(default=None, repr=False)
+
+    def _gate_px(self, width: int | None = None, height: int | None = None) -> float:
+        """Effective jump gate (px/frame): explicit override, else frame-relative, else a wide
+        fallback when frame size is unknown (keeps direct ``postprocess`` calls safe)."""
+        if self.max_px_per_frame is not None:
+            return self.max_px_per_frame
+        if width and height:
+            return self.max_jump_frac * max(width, height)
+        return 1e9  # unknown frame size -> effectively no coarse gate; RANSAC still rejects outliers
+
+    @staticmethod
+    def _frame_size(video_path: str | Path) -> tuple[int, int]:
+        """(width, height) of the source video, read from container metadata (no frame decode)."""
+        import cv2
+
+        cap = cv2.VideoCapture(str(video_path))
+        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+        return w, h
 
     def _ensure_model(self) -> None:
         if self._model is None:
@@ -82,16 +110,19 @@ class BallTracker:
         ``max_frames`` caps how many frames are processed; both default to inert.
         """
         raw = self._raw_detections(video_path, stride, progress=progress, max_frames=max_frames)
-        return self.postprocess(raw, homography)
+        w, h = self._frame_size(video_path)
+        return self.postprocess(raw, homography, max_px_per_frame=self._gate_px(w, h))
 
     def postprocess(
         self,
         raw: list[tuple[int, float, float, float]],
         homography: np.ndarray | None = None,
+        max_px_per_frame: float | None = None,
     ) -> list[BallSample]:
         """Gate impossible jumps, Kalman-smooth, and project to court coords.
 
-        Split out from model inference so it is unit-testable with synthetic detections.
+        Split out from model inference so it is unit-testable with synthetic detections. The jump
+        gate is ``max_px_per_frame`` if given, else the tracker's configured/auto bound (``_gate_px``).
         """
         if not raw:
             return []
@@ -100,7 +131,8 @@ class BallTracker:
         xy = np.array([[r[1], r[2]] for r in raw], dtype=float)
         conf = np.array([r[3] for r in raw], dtype=float)
 
-        keep = gate_jumps(frames, xy, self.max_px_per_frame)
+        gate = max_px_per_frame if max_px_per_frame is not None else self._gate_px()
+        keep = gate_jumps(frames, xy, gate)
         frames, xy, conf = frames[keep], xy[keep], conf[keep]
         smoothed = smooth(frames, xy)
 

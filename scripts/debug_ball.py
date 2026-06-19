@@ -97,8 +97,35 @@ def _run(
     return samples, time.time() - t0
 
 
+def _gate_report(raw, bt, w: int, h: int) -> None:
+    """Quantify the jump gate's effect on the raw detections: how many fast-ball detections the
+    old fixed 150 px/frame would have discarded vs the resolution-aware auto gate."""
+    import numpy as np
+
+    if len(raw) < 2:
+        print("jump-gate: too few detections to assess")
+        return
+    raw = sorted(raw, key=lambda r: r[0])
+    f = np.array([r[0] for r in raw])
+    xy = np.array([[r[1], r[2]] for r in raw], dtype=float)
+    dt = np.maximum(1, np.diff(f))
+    speed = np.hypot(*(np.diff(xy, axis=0).T)) / dt  # px/frame between consecutive detections
+    auto = bt._gate_px(w, h)
+    over_old = int((speed > 150).sum())
+    over_auto = int((speed > auto).sum())
+    kept_old = len(bt.postprocess(raw, None, max_px_per_frame=150.0))
+    kept_auto = len(bt.postprocess(raw, None, max_px_per_frame=auto))
+    print(f"jump-gate: frame {w}x{h} -> auto {auto:.0f} px/frame (old fixed: 150)")
+    print(f"  inter-detection speed px/frame: median {np.median(speed):.0f}, "
+          f"p90 {np.percentile(speed, 90):.0f}, max {speed.max():.0f}")
+    print(f"  steps > 150 px/frame (fast balls the old gate would drop): {over_old}"
+          f"  |  steps > auto gate (rejected now): {over_auto}")
+    print(f"  detections kept: old-150 gate {kept_old}  ->  auto gate {kept_auto}  "
+          f"(+{kept_auto - kept_old})")
+
+
 def single(video: str, weights: str, score_threshold: float, step: int, max_disp: float,
-           max_frames: int | None = None) -> int:
+           max_frames: int | None = None, max_jump_frac: float = 0.5) -> int:
     n = _frame_count(video)
     if max_frames:
         n = min(n, max_frames) if n else max_frames
@@ -108,8 +135,17 @@ def single(video: str, weights: str, score_threshold: float, step: int, max_disp
         return 2
     print(f"weights: {bt_weights} | score_threshold={score_threshold} step={step} "
           f"max_disp={max_disp}" + (f" | max_frames={max_frames}" if max_frames else ""))
-    samples, dt = _run(video, weights, score_threshold, step, max_disp,
-                       progress=_progress_printer(), max_frames=max_frames)
+    bt = BallTracker(weights=bt_weights, score_threshold=score_threshold, step=step,
+                     max_disp=max_disp, max_jump_frac=max_jump_frac)
+    bt._ensure_model()
+    print(f"device: {bt._model.device}"
+          + ("  (CUDA not available — expect slow inference)" if bt._model.device == "cpu" else ""))
+    w, h = bt._frame_size(video)
+    t0 = time.time()
+    raw = bt._raw_detections(video, 1, progress=_progress_printer(), max_frames=max_frames)
+    dt = time.time() - t0
+    _gate_report(raw, bt, w, h)
+    samples = bt.postprocess(raw, homography=None, max_px_per_frame=bt._gate_px(w, h))
     cov = (len(samples) / n) if n else 0
     print(f"frames: {n} | ball detected on: {len(samples)} | coverage: {cov * 100:.0f}% | {dt:.1f}s")
     if samples:
@@ -169,12 +205,14 @@ def main() -> int:
     ap.add_argument("--sweep", action="store_true", help="grid over weights/thresholds/steps")
     ap.add_argument("--max-frames", type=int, default=None,
                     help="only process the first N frames (quick calibration on a subset)")
+    ap.add_argument("--max-jump-frac", type=float, default=0.5,
+                    help="jump gate as a fraction of max(frame w,h) px/frame (default 0.5)")
     args = ap.parse_args()
 
     if args.sweep:
         return sweep(args.video, args.max_disp, args.max_frames)
     return single(args.video, args.weights, args.score_threshold, args.step, args.max_disp,
-                  args.max_frames)
+                  args.max_frames, args.max_jump_frac)
 
 
 if __name__ == "__main__":

@@ -33,3 +33,21 @@ def test_postprocess_gates_and_projects():
 
 def test_postprocess_empty():
     assert BallTracker().postprocess([], None) == []
+
+
+def test_fast_ball_survives_resolution_aware_gate():
+    """A genuinely fast ball (~500 px/frame at 1080p) must be kept by the auto gate, but a
+    full-frame teleport must still be dropped. The old fixed 150 px/frame would reject the fast ball.
+    """
+    # ~400 px/frame across the frame — a fast pickleball at 1080p/30fps (well over the old 150).
+    fast = [(i, 100.0 + 400 * i, 500.0, 0.9) for i in range(5)]  # x: 100..1700
+    teleport = (5, 100.0, 1050.0, 0.6)  # ~1690 px from the last fast point -> a true teleport
+
+    bt = BallTracker(max_jump_frac=0.5)  # auto gate for a 1920-wide frame ~= 960 px/frame
+    auto_gate = bt._gate_px(1920, 1080)
+    samples = bt.postprocess(fast + [teleport], homography=None, max_px_per_frame=auto_gate)
+    assert [s.frame for s in samples] == [0, 1, 2, 3, 4]  # fast ball kept, teleport rejected
+
+    # The old fixed 150 px/frame would have discarded the fast ball after the first point.
+    old = bt.postprocess(fast, homography=None, max_px_per_frame=150.0)
+    assert [s.frame for s in old] == [0]
