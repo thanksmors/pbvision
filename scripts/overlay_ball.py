@@ -25,10 +25,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "engine"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling scripts (debug_ball helpers)
 
-from debug_ball import _progress_printer, _resolve_weights  # noqa: E402
+from debug_ball import _load_dets, _progress_printer, _resolve_weights  # noqa: E402
 from pbengine.ball.tracker import BallTracker  # noqa: E402
 
 TRAIL = 12  # how many past points to fade behind the ball
+
+
+def _speed_color(speed: float, fast: float = 400.0):
+    """BGR ring colour: green (slow) -> red (fast). ``fast`` px/frame maps to full red."""
+    t = max(0.0, min(1.0, speed / fast))
+    return (0, int(255 * (1 - t)), int(255 * t))  # (B, G, R)
 
 
 def main(
@@ -39,25 +45,28 @@ def main(
     step: int = 1,
     max_disp: float = 300.0,
     max_frames: int | None = None,
+    dets: str | None = None,
 ) -> int:
     import cv2
 
-    bt = BallTracker(
-        weights=_resolve_weights(weights),
-        score_threshold=score_threshold,
-        step=step,
-        max_disp=max_disp,
-    )
-    if not Path(bt.weights).exists():
-        print(f"weights not found: {bt.weights} (run scripts/download_weights.sh)")
-        return 2
-    bt._ensure_model()
-    print(f"weights: {bt.weights} | score_threshold={score_threshold} step={step}"
-          + (f" | max_frames={max_frames}" if max_frames else ""))
-    print(f"device: {bt._model.device}"
-          + ("  (CUDA not available — expect slow inference)"
-             if bt._model.device == "cpu" else ""))
-    samples = bt.track(video, progress=_progress_printer(), max_frames=max_frames)
+    if dets:  # reuse a cached run from debug_ball.py --save-dets (no torch, no inference)
+        raw, dw, dh, _fps = _load_dets(dets)
+        bt = BallTracker()  # no model needed; postprocess only
+        samples = bt.postprocess(raw, homography=None, max_px_per_frame=bt._gate_px(dw, dh))
+        print(f"loaded {len(raw)} cached detections from {dets} ({dw}x{dh}); no inference")
+    else:
+        bt = BallTracker(weights=_resolve_weights(weights), score_threshold=score_threshold,
+                         step=step, max_disp=max_disp)
+        if not Path(bt.weights).exists():
+            print(f"weights not found: {bt.weights} (run scripts/download_weights.sh)")
+            return 2
+        bt._ensure_model()
+        print(f"weights: {bt.weights} | score_threshold={score_threshold} step={step}"
+              + (f" | max_frames={max_frames}" if max_frames else ""))
+        print(f"device: {bt._model.device}"
+              + ("  (CUDA not available — expect slow inference)"
+                 if bt._model.device == "cpu" else ""))
+        samples = bt.track(video, progress=_progress_printer(), max_frames=max_frames)
     by_frame = {s.frame: s for s in samples}
     print(f"detections: {len(samples)}")
 
@@ -85,6 +94,8 @@ def main(
         return 1
 
     trail: deque[tuple[int, int]] = deque(maxlen=TRAIL)
+    prev: tuple[int, float, float] | None = None  # (frame_idx, x, y) of the last detection
+    gap = 0  # consecutive frames with no detection
     idx = 0
     ok, frame = cap.read()
     while ok:
@@ -92,14 +103,26 @@ def main(
             break  # only render the frames the detector actually ran on
         s = by_frame.get(idx)
         if s is not None:
+            speed = 0.0
+            if prev is not None and idx > prev[0]:
+                speed = ((s.px[0] - prev[1]) ** 2 + (s.px[1] - prev[2]) ** 2) ** 0.5 / (idx - prev[0])
             trail.append((int(round(s.px[0])), int(round(s.px[1]))))
-        elif trail:
-            trail.append(trail[-1])  # hold last point so the trail fades instead of snapping
+            prev, gap = (idx, s.px[0], s.px[1]), 0
+        else:
+            gap += 1
+            if trail:
+                trail.append(trail[-1])  # hold last point so the trail fades instead of snapping
         for age, pt in enumerate(trail):
             shade = int(80 + 175 * (age + 1) / len(trail))  # older = dimmer
             cv2.circle(frame, pt, 3, (0, shade, shade), -1)
         if s is not None:
-            cv2.circle(frame, (int(round(s.px[0])), int(round(s.px[1]))), 9, (0, 0, 255), 2)
+            c = (int(round(s.px[0])), int(round(s.px[1])))
+            cv2.circle(frame, c, 9, _speed_color(speed), 2)
+            cv2.putText(frame, f"{speed:.0f} px/f", (c[0] + 12, c[1] - 12),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, _speed_color(speed), 1, cv2.LINE_AA)
+        else:
+            cv2.putText(frame, f"NO BALL - gap {gap}", (20, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
         writer.write(frame)
         idx += 1
         ok, frame = cap.read()
@@ -127,8 +150,10 @@ if __name__ == "__main__":
     ap.add_argument("--max-disp", type=float, default=300.0)
     ap.add_argument("--max-frames", type=int, default=None,
                     help="only process/render the first N frames (quick visual check)")
+    ap.add_argument("--dets", default=None, metavar="PATH",
+                    help="reuse a debug_ball.py --save-dets cache instead of re-running inference")
     args = ap.parse_args()
 
     dst = args.out or (str(Path(args.video).with_suffix("")) + "_ball.mp4")
     raise SystemExit(main(args.video, dst, args.weights, args.score_threshold, args.step,
-                          args.max_disp, args.max_frames))
+                          args.max_disp, args.max_frames, args.dets))
