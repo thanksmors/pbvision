@@ -494,20 +494,37 @@ function players3dAtFrame(frame) {
   return out;
 }
 
-// Nearest 3D ball sample to a frame, plus a short trail of preceding 3D points for motion. Returns
-// null when nothing with world_ft is within tolerance — i.e. the ball is dropped out right now, so
-// the 3D marker disappears at exactly the untracked moments.
-function ballAtFrame(traj, frame, tol = 4) {
-  const pts = (traj || []).filter((s) => s.world_ft);
+// 3D ball position at a frame, plus a short trail of preceding 3D points for motion. Brackets the
+// frame between the nearest samples that have world_ft and linearly interpolates, so the 3D marker
+// stays continuous across the reconstruction gaps (where 2D still shows the ball from px) instead of
+// blinking out. Beyond maxGap / outside a rally it returns null. Presentation-only: the stored
+// trajectory is unchanged.
+function ballAtFrame(traj, frame, maxGap = 30, tol = 6) {
+  const pts = (traj || []).filter((s) => s.world_ft);  // traj is frame-ordered
   if (!pts.length) return null;
-  let cur = null, bestD = Infinity, ci = -1;
-  pts.forEach((s, j) => {
-    const d = Math.abs(s.frame - frame);
-    if (d < bestD) { bestD = d; cur = s; ci = j; }
-  });
-  if (!cur || bestD > tol) return null;
+  let lo = -1;
+  for (let j = 0; j < pts.length; j++) { if (pts[j].frame <= frame) lo = j; else break; }
+  let world, speed, interp, ci;
+  if (lo >= 0 && lo + 1 < pts.length) {
+    const a = pts[lo], b = pts[lo + 1], span = b.frame - a.frame;
+    if (span > 0 && span <= maxGap) {
+      const t = (frame - a.frame) / span;
+      world = a.world_ft.map((av, k) => av + t * (b.world_ft[k] - av));
+      speed = (a.speed_mph != null && b.speed_mph != null)
+        ? a.speed_mph + t * (b.speed_mph - a.speed_mph) : (a.speed_mph ?? b.speed_mph);
+      interp = a.interpolated || b.interpolated || (frame !== a.frame && frame !== b.frame);
+      ci = t >= 0.5 ? lo + 1 : lo;
+    }
+  }
+  if (world === undefined) {
+    // Outside a bracket (segment start/end) — hold the nearest sample within a small tolerance.
+    let cur = null, bestD = Infinity, idx = -1;
+    pts.forEach((s, j) => { const d = Math.abs(s.frame - frame); if (d < bestD) { bestD = d; cur = s; idx = j; } });
+    if (!cur || bestD > tol) return null;
+    world = cur.world_ft; speed = cur.speed_mph; interp = cur.interpolated; ci = idx;
+  }
   const trail = pts.slice(Math.max(0, ci - 15), ci + 1).map((s) => s.world_ft);  // ~0.5s tail
-  return { world_ft: cur.world_ft, speed_mph: cur.speed_mph, interpolated: cur.interpolated, trail };
+  return { world_ft: world, speed_mph: speed, interpolated: interp, trail };
 }
 
 // Advance the 3D ball + skeletons to the current video frame. The three.js render loop calls this
@@ -713,18 +730,11 @@ function init3d() {
 
 window.render3d = function (traj, bounces) {
   if (!renderer) init3d();
+  // Minimal view: the scene is just the static court (built in init3d) plus the live ball marker +
+  // trail (renderBall3d) and the skeletons (renderPlayers3d), both driven by the playback loop. No
+  // static arc, per-sample points, or bounce markers. Clear any leftover dynamic statics.
   for (const o of dyn) scene.remove(o);
   dyn = [];
-  // The ball itself is drawn by the live marker + short trail (renderBall3d) as the video plays —
-  // we deliberately do NOT paint the whole static arc here. Only the bounce contacts are kept as
-  // ground context.
-  for (const b of (bounces || [])) {
-    if (!b.court_xy) continue;
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12),
-      new THREE.MeshBasicMaterial({ color: 0xfbbf24 }));
-    m.position.copy(P(b.court_xy[0] * W, b.court_xy[1] * L, 0.02));
-    scene.add(m); dyn.push(m);
-  }
 };
 
 // COCO-17 skeleton edges (mirror of the 2D const / pbengine.detect.pose.COCO_SKELETON).

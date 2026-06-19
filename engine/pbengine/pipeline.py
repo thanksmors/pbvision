@@ -185,7 +185,8 @@ def _track_players(
             paddle_px = paddle_segment_px(t.keypoints_px, t.keypoint_conf)
             if camera is not None and homography is not None:
                 pose_world = billboard_lift(
-                    t.keypoints_px, t.keypoint_conf, ground_xy_ft(court_xy), camera
+                    t.keypoints_px, t.keypoint_conf, ground_xy_ft(court_xy), camera,
+                    bbox_px=t.bbox_px,
                 )
                 paddle_world = paddle_tip_world(pose_world, t.keypoint_conf)
 

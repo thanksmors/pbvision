@@ -1,10 +1,10 @@
 """Monocular pose lift: project a known 3D stick figure to pixels, lift it back, check recovery.
 
-The billboard lift is exact when the true figure lies in the vertical plane through the foot point
-that faces the camera (the model's assumption), so we build the ground-truth figure in that plane
-and assert recovery to within a tight tolerance — plus that the ankles land on the ground (Z≈0).
-We hand-build a camera whose ``P`` is exactly consistent with ``(K, R, t)`` so the lift inverts the
-projection precisely (``recover_camera`` orthonormalizes R, which would add small inconsistency).
+The lift scales the 2D pose into a vertical, camera-facing plane at the foot point using the bbox
+pixel height + an assumed standing height (so heights are robust to focal-length error). We build a
+ground-truth figure standing in that plane, project it through a consistent camera, derive its bbox
+from the projected pixels, lift it back, and assert it recovers a standing skeleton: ankles on the
+ground (Z≈0), head near the assumed height, foot at the court point, left/right preserved.
 """
 
 from __future__ import annotations
@@ -38,44 +38,74 @@ def _camera():
     return CameraModel(P=p, K=k, R=rot, t=t, focal_px=F_PX, reprojection_error_px=0.0)
 
 
+# (lateral ft, height ft) per COCO index: feet at Z=0, head ~5.7 ft, arms spread. Left keypoints
+# (odd indices) are at negative lateral, right (even) at positive, matching image left/right.
+_FIGURE_LH = [
+    (0.0, 5.6),                       # 0 nose
+    (-0.2, 5.7), (0.2, 5.7),          # 1/2 eyes
+    (-0.4, 5.6), (0.4, 5.6),          # 3/4 ears
+    (-0.7, 4.8), (0.7, 4.8),          # 5/6 shoulders
+    (-1.2, 4.0), (1.2, 4.0),          # 7/8 elbows
+    (-1.6, 3.2), (1.6, 3.2),          # 9/10 wrists
+    (-0.5, 3.0), (0.5, 3.0),          # 11/12 hips
+    (-0.5, 1.5), (0.5, 1.5),          # 13/14 knees
+    (-0.5, 0.0), (0.5, 0.0),          # 15/16 ankles
+]
+_FIGURE_HT = 5.7  # head height of the figure above the ground
+
+
 def _figure_in_billboard_plane(cam, gx, gy):
-    """Build a COCO-17 figure standing at ground (gx, gy) in the camera-facing vertical plane."""
+    """Build a COCO-17 figure standing at ground (gx, gy) in the camera-facing vertical plane.
+
+    Uses the same lateral axis the lift uses (camera right, horizontalized) so a consistent camera
+    round-trips the figure back to (approximately) itself.
+    """
     ground = np.array([gx, gy, 0.0])
-    cam_c = -cam.R.T @ cam.t
-    n = cam_c - ground
-    n[2] = 0.0
-    n /= np.linalg.norm(n)
-    up = np.array([0.0, 0.0, 1.0])
-    side = np.cross(up, n)
+    side = cam.R.T @ np.array([1.0, 0.0, 0.0])
+    side[2] = 0.0
     side /= np.linalg.norm(side)
-    # (lateral ft, height ft) per COCO index: feet at Z=0, head ~5.8 ft, arms spread.
-    lh = [
-        (0.0, 5.6),                       # nose
-        (-0.2, 5.7), (0.2, 5.7),          # eyes
-        (-0.4, 5.6), (0.4, 5.6),          # ears
-        (-0.7, 4.8), (0.7, 4.8),          # shoulders
-        (-1.2, 4.0), (1.2, 4.0),          # elbows
-        (-1.6, 3.2), (1.6, 3.2),          # wrists
-        (-0.5, 3.0), (0.5, 3.0),          # hips
-        (-0.5, 1.5), (0.5, 1.5),          # knees
-        (-0.5, 0.0), (0.5, 0.0),          # ankles
-    ]
-    return [ground + lat * side + h * up for lat, h in lh]
+    up = np.array([0.0, 0.0, 1.0])
+    return [ground + lat * side + h * up for lat, h in _FIGURE_LH]
 
 
-def test_billboard_lift_recovers_in_plane_figure():
+def test_billboard_lift_recovers_standing_figure():
     cam = _camera()
     gx, gy = 8.0, 18.0
     truth = _figure_in_billboard_plane(cam, gx, gy)
     px = [tuple(cam.project(np.array([p]))[0]) for p in truth]
     conf = [0.9] * N_KEYPOINTS
+    # Bbox from the projected pixels (what the detector would produce), height anchored to ~the
+    # figure's true height so the recovered scale matches the truth.
+    xs, ys = [p[0] for p in px], [p[1] for p in px]
+    bbox = (min(xs), min(ys), max(xs), max(ys))
 
-    lifted = billboard_lift(px, conf, ground_xy_ft((gx / 20.0, gy / 44.0)), cam)
+    lifted = billboard_lift(px, conf, ground_xy_ft((gx / 20.0, gy / 44.0)), cam,
+                            bbox_px=bbox, player_height_ft=_FIGURE_HT)
     assert lifted is not None
+    # Ankles on the court; head near the figure height; standing (not collapsed).
+    assert lifted[15][2] < 0.1 and lifted[16][2] < 0.1
+    assert abs(lifted[0][2] - _FIGURE_HT) < 0.4
+    assert max(p[2] for p in lifted) > 4.0
+    # Foot (avg ankles) sits at the court ground point.
+    foot = (np.array(lifted[15]) + np.array(lifted[16])) / 2
+    assert abs(foot[0] - gx) < 0.3 and abs(foot[1] - gy) < 0.3
+    # Heights monotonic head -> shoulder -> hip -> knee -> ankle, and full recovery near truth.
+    assert lifted[0][2] > lifted[5][2] > lifted[11][2] > lifted[13][2] > lifted[15][2]
     for got, want in zip(lifted, truth):
-        assert np.linalg.norm(np.array(got) - want) < 0.05  # within ~half an inch
-    # Ankles sit on the court.
-    assert lifted[15][2] < 0.05 and lifted[16][2] < 0.05
+        assert np.linalg.norm(np.array(got) - want) < 0.4
+    # Left wrist (9, lateral -1.6) and right wrist (10, +1.6) on opposite sides along the plane's
+    # lateral axis (camera right), i.e. orientation preserved.
+    side = cam.R.T @ np.array([1.0, 0.0, 0.0]); side[2] = 0.0; side /= np.linalg.norm(side)
+    assert np.dot(np.array(lifted[9]) - foot, side) < 0 < np.dot(np.array(lifted[10]) - foot, side)
+
+
+def test_billboard_lift_none_when_camera_overhead():
+    cam = _camera()
+    # A straight-down camera (R = identity-ish with no horizontal right axis) -> degenerate facing.
+    overhead = CameraModel(P=cam.P, K=cam.K, R=np.array([[0.0, 0, 1.0], [0, 1.0, 0], [-1.0, 0, 0]]),
+                           t=cam.t, focal_px=F_PX, reprojection_error_px=0.0)
+    px = [(960.0, 540.0)] * N_KEYPOINTS
+    assert billboard_lift(px, [0.9] * N_KEYPOINTS, (8.0, 18.0), overhead, bbox_px=(0, 0, 50, 120)) is None
 
 
 def test_paddle_segment_extends_past_wrist():
