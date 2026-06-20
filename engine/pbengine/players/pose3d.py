@@ -1,17 +1,25 @@
-"""Lift 2D pose keypoints into 3D and derive a wrist-anchored paddle — monocular, camera-based.
+"""Lift 2D pose keypoints into a real 3D skeleton and derive a wrist-anchored paddle (monocular).
 
-A single camera can't recover per-keypoint depth, so we use a **billboard** ("cardboard cutout")
-approximation: the player stands on the court at the ground point under their feet, in a vertical
-plane that faces the camera. Each keypoint's pixel offset from the foot is mapped into that plane at
-a scale fixed by the bounding-box pixel height and an assumed standing height (``PLAYER_HEIGHT_FT``)
-— so the skeleton keeps its apparent shape and stands at a realistic height regardless of how
-accurately the camera's focal length was recovered. (Back-projecting keypoint rays through the
-recovered camera instead made every height collapse to ~0 whenever that focal estimate was off.)
-Limbs reaching toward or away from the camera flatten onto the plane (the known approximation). When
-the lift is degenerate (camera ~overhead) the caller falls back to a 2D-only skeleton / a stick.
+A single camera can't *directly* measure per-keypoint depth, but the depth is recoverable here from
+three constraints (the geometry behind :func:`lift_pose_3d`):
 
-The paddle is a wrist-anchored estimate (no paddle model): a short segment extending past the
-stronger-confidence wrist along the elbow->wrist direction.
+1. **Assumed height** (``PLAYER_HEIGHT_FT`` ≈ 5'9") → metric **bone lengths** (``_BONE_FRAC``).
+2. **Feet on the ground** → an exact anchor: an ankle's pixel ray ∩ ``Z=0`` gives its true court
+   position (the homography is exact on the ground plane).
+3. **Players face each other** across the net → the body forward direction is known, which breaks the
+   front/back depth-sign ambiguity that pure monocular can't.
+
+The key fact: a pixel ``(u,v)`` back-projects to the world ray ``X(s)=C+s·d`` where, using the *same*
+projection matrix ``P`` the forward projection uses, ``M=P[:, :3]``, ``C=-M⁻¹P[:, 3]``,
+``d=M⁻¹[u,v,1]``. Every point on that ray reprojects **exactly** to ``(u,v)``. So each joint is
+placed on its own ray (the 3D skeleton's silhouette always matches the observed 2D pose) and we only
+solve *where along the ray* (depth) using the bone length to its parent. Of the two depth roots we
+pick using the body facing (+ temporal consistency). This is the Taylor (2000) articulated
+reconstruction, anchored at the feet. From the broadcast-camera angle the result is identical to the
+2D pose; rotated, it shows real depth.
+
+:func:`billboard_lift` is kept as a degenerate-geometry fallback (flat cutout). The paddle is a
+wrist-anchored estimate (no paddle model): a short segment past the stronger wrist along elbow→wrist.
 
 World frame matches :mod:`pbengine.ball.camera`: X across the 20 ft width, Y along the 44 ft
 length, Z up; ground plane Z = 0.
@@ -19,14 +27,147 @@ length, Z up; ground plane Z = 0.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from pbengine.ball.camera import CameraModel
-from pbengine.detect.pose import L_ELBOW, L_WRIST, R_ELBOW, R_WRIST
+from pbengine.detect.pose import (
+    L_ANKLE, L_ELBOW, L_HIP, L_KNEE, L_SHOULDER, L_WRIST, N_KEYPOINTS, NOSE,
+    R_ANKLE, R_ELBOW, R_HIP, R_KNEE, R_SHOULDER, R_WRIST,
+)
 from pbengine.court.court_model import LENGTH_FT, WIDTH_FT
 
 _CONF_FLOOR = 0.3  # keypoints below this are unreliable; skipped in the lift / paddle
-PLAYER_HEIGHT_FT = 5.75  # assumed standing height (~5'9", average player) for the billboard scale
+PLAYER_HEIGHT_FT = 5.75  # assumed standing height (~5'9", average player) for the bone-length scale
+
+# Bone lengths as fractions of stature (Drillis & Contini anthropometry, approximate).
+_BONE_FRAC = {"shank": 0.246, "thigh": 0.245, "torso": 0.30, "uarm": 0.186, "farm": 0.146,
+              "head": 0.16}
+
+# Kinematic chain solved foot-up: (child, parent, bone, forward_tendency). forward_tendency is the
+# sign of the child's typical depth offset from its parent along the body-forward axis (+1 forward,
+# -1 back, 0 axial/upright) — used to pick the depth root on the seed frame.
+_CHAIN = (
+    (L_KNEE, L_ANKLE, "shank", +1), (R_KNEE, R_ANKLE, "shank", +1),
+    (L_HIP, L_KNEE, "thigh", -1), (R_HIP, R_KNEE, "thigh", -1),
+    (L_SHOULDER, L_HIP, "torso", 0), (R_SHOULDER, R_HIP, "torso", 0),
+    (L_ELBOW, L_SHOULDER, "uarm", +1), (R_ELBOW, R_SHOULDER, "uarm", +1),
+    (L_WRIST, L_ELBOW, "farm", +1), (R_WRIST, R_ELBOW, "farm", +1),
+)
+
+
+def _back_project(camera: CameraModel):
+    """Return ``(C, Minv)``: camera centre (world ft) and ``M⁻¹`` for ray back-projection.
+
+    Uses the same ``P`` as :meth:`CameraModel.project` (``M = P[:, :3]``), so a pixel's ray
+    ``C + s·(Minv @ [u,v,1])`` reprojects exactly and its ∩ ``Z=0`` equals the homography ground
+    point — sidestepping the focal/orthonormalization inconsistency that collapsed the billboard.
+    Returns ``None`` if ``M`` is singular (degenerate camera).
+    """
+    M = camera.P[:, :3]
+    try:
+        Minv = np.linalg.inv(M)
+    except np.linalg.LinAlgError:
+        return None
+    C = -Minv @ camera.P[:, 3]
+    return C, Minv
+
+
+def _clamp_z(p: np.ndarray) -> np.ndarray:
+    return np.array([p[0], p[1], max(p[2], 0.0)])
+
+
+def _solve_joint(C, d, parent, L, ftend, sigma, prev):
+    """Place a child joint on its ray ``C+s·d`` at distance ``L`` from ``parent``; resolve the sign.
+
+    Two depth roots (near/far); pick by previous-frame proximity if available, else the body-facing
+    tendency ``ftend`` and camera-front sign ``sigma`` (axial joints pick the more upright root). If
+    the bone is more foreshortened than ``L`` allows (no real root) use the closest point on the ray.
+    """
+    a = float(d @ d)
+    diff = C - parent
+    b = 2.0 * float(d @ diff)
+    c = float(diff @ diff) - L * L
+    disc = b * b - 4.0 * a * c
+    if a < 1e-12:
+        return _clamp_z(parent)
+    if disc <= 0.0:
+        return _clamp_z(C + (-b / (2.0 * a)) * d)  # closest point on ray (max foreshortening)
+    sq = math.sqrt(disc)
+    cands = [C + s * d for s in ((-b - sq) / (2.0 * a), (-b + sq) / (2.0 * a)) if s > 0]
+    if not cands:
+        return _clamp_z(C + (-b / (2.0 * a)) * d)
+    if len(cands) == 1:
+        return _clamp_z(cands[0])
+    near, far = cands  # ordered by s (near = smaller depth)
+    if prev is not None:
+        prev = np.asarray(prev, dtype=float)
+        chosen = near if np.linalg.norm(near - prev) <= np.linalg.norm(far - prev) else far
+    elif ftend != 0:
+        chosen = near if (ftend * sigma) > 0 else far  # forward parts are nearer when camera in front
+    else:
+        chosen = near if near[2] >= far[2] else far    # axial: pick the more upright root
+    return _clamp_z(chosen)
+
+
+def lift_pose_3d(
+    keypoints_px: list[tuple[float, float]],
+    keypoint_conf: list[float] | None,
+    court_xy: tuple[float, float],
+    camera: CameraModel,
+    forward_dir: tuple[float, float, float],
+    prev_pose: list[tuple[float, float, float]] | None = None,
+    player_height_ft: float = PLAYER_HEIGHT_FT,
+) -> list[tuple[float, float, float]] | None:
+    """Reconstruct a real 3D skeleton (COCO-17, court feet) from the 2D pose. See module docstring.
+
+    ``court_xy`` is the player's normalized foot position (for the feet fallback anchor);
+    ``forward_dir`` is the unit body-forward vector (``+Y`` side A, ``−Y`` side B); ``prev_pose`` is
+    the previous frame's solved pose for temporal sign consistency. Returns 17 ``(X,Y,Z)`` or
+    ``None`` on degenerate geometry (caller falls back to :func:`billboard_lift`).
+    """
+    bp = _back_project(camera)
+    if bp is None:
+        return None
+    C, Minv = bp
+    conf = keypoint_conf if keypoint_conf is not None else [1.0] * N_KEYPOINTS
+    F = np.asarray(forward_dir, dtype=float)
+    bones = {k: f * player_height_ft for k, f in _BONE_FRAC.items()}
+    rays = [Minv @ np.array([float(u), float(v), 1.0]) for u, v in keypoints_px]
+    foot_ground = np.array([*ground_xy_ft(court_xy), 0.0])
+
+    P3: list[np.ndarray | None] = [None] * N_KEYPOINTS
+
+    # Anchor the ankles on the ground (exact); low-conf ankle -> the court_xy foot point.
+    for ankle in (L_ANKLE, R_ANKLE):
+        d = rays[ankle]
+        g = None
+        if conf[ankle] >= _CONF_FLOOR and abs(d[2]) > 1e-9:
+            s = -C[2] / d[2]
+            if s > 0:
+                g = C + s * d
+        P3[ankle] = _clamp_z(g) if g is not None else foot_ground.copy()
+
+    foot = (P3[L_ANKLE] + P3[R_ANKLE]) / 2.0
+    sigma = 1.0 if float((C - foot) @ F) >= 0 else -1.0
+
+    for child, parent, bone, ftend in _CHAIN:
+        prev = prev_pose[child] if prev_pose is not None else None
+        P3[child] = _solve_joint(C, rays[child], P3[parent], bones[bone], ftend, sigma, prev)
+
+    # Head: nose from the shoulder centre; eyes/ears placed at the nose's depth on their own rays.
+    mid_sh = (P3[L_SHOULDER] + P3[R_SHOULDER]) / 2.0
+    prev_nose = prev_pose[NOSE] if prev_pose is not None else None
+    P3[NOSE] = _solve_joint(C, rays[NOSE], mid_sh, bones["head"], 0, sigma, prev_nose)
+    s_nose = float((P3[NOSE] - C) @ rays[NOSE]) / float(rays[NOSE] @ rays[NOSE])
+    for k in (1, 2, 3, 4):  # eyes, ears (not drawn; kept for a full 17-length array)
+        P3[k] = _clamp_z(C + s_nose * rays[k])
+
+    out = [(float(p[0]), float(p[1]), float(p[2])) for p in P3]
+    if not all(np.isfinite(v) for p in out for v in p):
+        return None  # numeric blow-up -> caller falls back to the billboard
+    return out
 
 
 def _camera_right_horizontal(camera: CameraModel) -> np.ndarray | None:

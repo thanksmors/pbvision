@@ -771,6 +771,14 @@ window.renderPlayers3d = function (framePlayers) {
       dynPlayers.push(line([P(kp[a][0], kp[a][1], kp[a][2]),
                             P(kp[b][0], kp[b][1], kp[b][2])], COL, 0.95));
     }
+    // Joint spheres for readability (WebGL line width is unreliable) — gives the skeleton body.
+    const jointGeo = new THREE.SphereGeometry(0.13, 8, 8);
+    const jointMat = new THREE.MeshBasicMaterial({ color: COL });
+    kp.forEach((p, k) => {
+      if (cf[k] < 0.3) return;
+      const j = new THREE.Mesh(jointGeo, jointMat);
+      j.position.copy(P(p[0], p[1], p[2])); scene.add(j); dynPlayers.push(j);
+    });
     if (fp.paddle) {
       const m = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 10),
         new THREE.MeshBasicMaterial({ color: 0xff9600 }));

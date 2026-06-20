@@ -12,10 +12,16 @@ from __future__ import annotations
 import numpy as np
 
 from pbengine.ball.camera import CameraModel
-from pbengine.detect.pose import L_ELBOW, L_WRIST, N_KEYPOINTS, R_ELBOW, R_WRIST
+from pbengine.detect.pose import (
+    L_ANKLE, L_ELBOW, L_HIP, L_KNEE, L_SHOULDER, L_WRIST, N_KEYPOINTS, NOSE,
+    R_ANKLE, R_ELBOW, R_HIP, R_KNEE, R_SHOULDER, R_WRIST,
+)
 from pbengine.players.pose3d import (
+    _BONE_FRAC,
+    PLAYER_HEIGHT_FT,
     billboard_lift,
     ground_xy_ft,
+    lift_pose_3d,
     paddle_segment_px,
     paddle_tip_world,
 )
@@ -106,6 +112,101 @@ def test_billboard_lift_none_when_camera_overhead():
                            t=cam.t, focal_px=F_PX, reprojection_error_px=0.0)
     px = [(960.0, 540.0)] * N_KEYPOINTS
     assert billboard_lift(px, [0.9] * N_KEYPOINTS, (8.0, 18.0), overhead, bbox_px=(0, 0, 50, 120)) is None
+
+
+# --- lift_pose_3d: real volumetric reconstruction --------------------------------------------------
+
+def _unit(v):
+    v = np.asarray(v, dtype=float)
+    return v / np.linalg.norm(v)
+
+
+def _build_3d_pose(gx, gy):
+    """A known 3D COCO pose standing at (gx, gy) facing +Y, with genuine depth: right arm reaching
+    forward (+Y), knees bent forward. Bones match _BONE_FRAC * PLAYER_HEIGHT_FT so the depth solve
+    (which uses those lengths) can recover it."""
+    H = PLAYER_HEIGHT_FT
+    bone = {k: f * H for k, f in _BONE_FRAC.items()}
+    p = [None] * N_KEYPOINTS
+
+    def place(parent, direction, length):
+        return np.asarray(parent, dtype=float) + length * _unit(direction)
+
+    p[L_ANKLE] = np.array([gx - 0.4, gy, 0.0])
+    p[R_ANKLE] = np.array([gx + 0.4, gy, 0.0])
+    # legs: knees forward (+Y), hips slightly back, lengths exact.
+    p[L_KNEE] = place(p[L_ANKLE], (0, 0.5, 1.0), bone["shank"])
+    p[R_KNEE] = place(p[R_ANKLE], (0, 0.5, 1.0), bone["shank"])
+    p[L_HIP] = place(p[L_KNEE], (0, -0.3, 1.0), bone["thigh"])
+    p[R_HIP] = place(p[R_KNEE], (0, -0.3, 1.0), bone["thigh"])
+    # torso: shoulders up and a touch wider.
+    p[L_SHOULDER] = place(p[L_HIP], (-0.15, 0, 1.0), bone["torso"])
+    p[R_SHOULDER] = place(p[R_HIP], (0.15, 0, 1.0), bone["torso"])
+    # left arm hangs down; right arm reaches forward (+Y) and down.
+    p[L_ELBOW] = place(p[L_SHOULDER], (0, 0, -1.0), bone["uarm"])
+    p[R_ELBOW] = place(p[R_SHOULDER], (0, 1.0, -0.5), bone["uarm"])
+    p[L_WRIST] = place(p[L_ELBOW], (0, 0, -1.0), bone["farm"])
+    p[R_WRIST] = place(p[R_ELBOW], (0, 1.0, -0.3), bone["farm"])
+    mid_sh = (p[L_SHOULDER] + p[R_SHOULDER]) / 2.0
+    p[NOSE] = place(mid_sh, (0, 0.1, 1.0), bone["head"])
+    for k in (1, 2, 3, 4):  # eyes/ears near the nose
+        p[k] = p[NOSE] + np.array([0.1 * (k - 2.5), 0.0, 0.1])
+    return p
+
+
+def test_lift_pose_3d_recovers_depth_and_reprojects_exactly():
+    cam = _camera()
+    gx, gy = 9.0, 16.0  # side A (Y < 22) -> faces +Y
+    truth = _build_3d_pose(gx, gy)
+    px = [tuple(cam.project(np.array([t]))[0]) for t in truth]
+    conf = [0.9] * N_KEYPOINTS
+    court_xy = (gx / 20.0, gy / 44.0)
+
+    lifted = lift_pose_3d(px, conf, court_xy, cam, forward_dir=(0.0, 1.0, 0.0))
+    assert lifted is not None
+
+    # Core property: every joint lies on its own ray -> reprojects exactly to the input pixel.
+    reproj = cam.project(np.array(lifted))
+    for (ru, rv), (u, v) in zip(reproj, px):
+        assert abs(ru - u) < 1.0 and abs(rv - v) < 1.0
+
+    # Feet on the ground; recovered pose close to truth (depth resolved, not flat).
+    assert lifted[L_ANKLE][2] < 0.1 and lifted[R_ANKLE][2] < 0.1
+    for k in (L_KNEE, R_KNEE, L_HIP, R_HIP, L_SHOULDER, R_SHOULDER, R_ELBOW, R_WRIST, NOSE):
+        assert np.linalg.norm(np.array(lifted[k]) - truth[k]) < 0.5
+
+    # The right arm is recovered reaching FORWARD (+Y), not flattened/behind.
+    fwd_reach = (np.array(lifted[R_WRIST]) - np.array(lifted[R_SHOULDER]))[1]
+    assert fwd_reach > 0.3  # genuine forward depth
+
+    # Not flat: joints span a real range of Y (depth), unlike a billboard (single Y plane).
+    ys = [p[1] for p in lifted]
+    assert max(ys) - min(ys) > 1.0
+
+
+def test_lift_pose_3d_facing_resolves_front_back_ambiguity():
+    cam = _camera()
+    gx, gy = 9.0, 16.0
+    truth = _build_3d_pose(gx, gy)
+    px = [tuple(cam.project(np.array([t]))[0]) for t in truth]
+    conf = [0.9] * N_KEYPOINTS
+    court_xy = (gx / 20.0, gy / 44.0)
+
+    # Correct facing (+Y) -> arm forward; flipped facing (-Y) -> the SAME pixels are resolved with
+    # the arm going backward. This shows the facing assumption is what breaks the depth ambiguity.
+    fwd = lift_pose_3d(px, conf, court_xy, cam, forward_dir=(0.0, 1.0, 0.0))
+    bwd = lift_pose_3d(px, conf, court_xy, cam, forward_dir=(0.0, -1.0, 0.0))
+    reach_fwd = (np.array(fwd[R_WRIST]) - np.array(fwd[R_SHOULDER]))[1]
+    reach_bwd = (np.array(bwd[R_WRIST]) - np.array(bwd[R_SHOULDER]))[1]
+    assert reach_fwd > 0.3 and reach_bwd < 0.0  # depth sign flips with facing
+
+
+def test_lift_pose_3d_none_on_singular_camera():
+    cam = _camera()
+    bad = CameraModel(P=np.zeros((3, 4)), K=cam.K, R=cam.R, t=cam.t, focal_px=F_PX,
+                      reprojection_error_px=0.0)
+    px = [(960.0, 540.0)] * N_KEYPOINTS
+    assert lift_pose_3d(px, [0.9] * N_KEYPOINTS, (0.4, 0.4), bad, (0.0, 1.0, 0.0)) is None
 
 
 def test_paddle_segment_extends_past_wrist():

@@ -163,49 +163,66 @@ def _track_players(
     video_path: Path, homography: np.ndarray | None, detector: PlayerDetector, camera=None,
     fps: float = 30.0,
 ) -> list[Player]:
-    """Track players, project feet to court coords, lift pose to 3D, and assign teams by side."""
+    """Track players, project feet to court coords, lift pose to real 3D, assign teams by side."""
     from pbengine.court.homography import project
+    from pbengine.players.interpolate import interpolate_positions
     from pbengine.players.pose3d import (
         billboard_lift,
         ground_xy_ft,
+        lift_pose_3d,
         paddle_segment_px,
         paddle_tip_world,
     )
 
+    # First pass: gather raw per-frame detections per track + side votes (the 3D solve needs each
+    # track's stable forward direction and runs in frame order with temporal state, so it can't be
+    # done in this interleaved loop).
     tracks = detector.track(video_path)
-    by_id: dict[int, list[PlayerPosition]] = defaultdict(list)
+    raw_by_id: dict[int, list[dict]] = defaultdict(list)
     side_votes: dict[int, list[str]] = defaultdict(list)
     for t in tracks:
         court_xy = (0.0, 0.0)
         if homography is not None:
             court_xy = tuple(project(homography, t.foot_px)[0])
-
-        pose_world = paddle_px = paddle_world = None
-        if t.keypoints_px is not None:
-            paddle_px = paddle_segment_px(t.keypoints_px, t.keypoint_conf)
-            if camera is not None and homography is not None:
-                pose_world = billboard_lift(
-                    t.keypoints_px, t.keypoint_conf, ground_xy_ft(court_xy), camera,
-                    bbox_px=t.bbox_px,
-                )
-                paddle_world = paddle_tip_world(pose_world, t.keypoint_conf)
-
-        by_id[t.track_id].append(
-            PlayerPosition(
-                frame=t.frame, court_xy=court_xy, bbox_px=t.bbox_px,
-                pose_px=t.keypoints_px, pose_conf=t.keypoint_conf, pose_world_ft=pose_world,
-                paddle_px=paddle_px, paddle_world_ft=paddle_world,
-            )
+        raw_by_id[t.track_id].append(
+            {"frame": t.frame, "court_xy": court_xy, "bbox_px": t.bbox_px,
+             "kpx": t.keypoints_px, "kconf": t.keypoint_conf}
         )
         if homography is not None:
             side_votes[t.track_id].append(side_of(court_xy))
 
-    from pbengine.players.interpolate import interpolate_positions
-
     players: list[Player] = []
-    for tid, positions in by_id.items():
+    for tid, recs in raw_by_id.items():
         votes = side_votes.get(tid, [])
         team = Team(max(set(votes), key=votes.count)) if votes else None
+        # Players face their opponents across the net: side A (baseline Y=0) faces +Y, side B faces
+        # -Y. This known body-forward breaks the monocular front/back depth ambiguity in lift_pose_3d.
+        forward = (0.0, -1.0, 0.0) if team == Team.B else (0.0, 1.0, 0.0)
+
+        recs.sort(key=lambda r: r["frame"])
+        prev_pose = None  # previous frame's solved 3D pose -> temporal depth-sign consistency
+        positions: list[PlayerPosition] = []
+        for r in recs:
+            kpx, kconf, court_xy = r["kpx"], r["kconf"], r["court_xy"]
+            pose_world = paddle_px = paddle_world = None
+            if kpx is not None:
+                paddle_px = paddle_segment_px(kpx, kconf)
+                if camera is not None and homography is not None:
+                    pose_world = lift_pose_3d(kpx, kconf, court_xy, camera, forward,
+                                              prev_pose=prev_pose)
+                    if pose_world is not None:
+                        prev_pose = pose_world  # only seed from real solves, not the flat fallback
+                    else:
+                        pose_world = billboard_lift(kpx, kconf, ground_xy_ft(court_xy), camera,
+                                                    bbox_px=r["bbox_px"])
+                    paddle_world = paddle_tip_world(pose_world, kconf)
+            positions.append(
+                PlayerPosition(
+                    frame=r["frame"], court_xy=court_xy, bbox_px=r["bbox_px"],
+                    pose_px=kpx, pose_conf=kconf, pose_world_ft=pose_world,
+                    paddle_px=paddle_px, paddle_world_ft=paddle_world,
+                )
+            )
         # Bridge short detection dropouts so the skeleton stays continuous in the viewer.
         positions = interpolate_positions(positions, fps)
         players.append(Player(track_id=tid, team=team, positions=positions))
