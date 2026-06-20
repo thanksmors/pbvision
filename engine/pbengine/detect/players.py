@@ -47,6 +47,9 @@ class PlayerDetector:
     tracker: str = "bytetrack.yaml"
     conf: float = 0.3
     vid_stride: int = 1
+    imgsz: int | None = None   # inference resolution; None = Ultralytics default (640). Higher (e.g.
+                               # 1280) resolves small/far players at the cost of speed (~quadratic).
+    augment: bool = False      # test-time augmentation (multi-scale); helps small players, ~2-3x slower
     _model: object = field(default=None, repr=False)
 
     def _ensure_model(self) -> None:
@@ -67,6 +70,12 @@ class PlayerDetector:
         """
         self._ensure_model()
         tracks: list[PlayerTrack] = []
+        # Only pass imgsz/augment when set so the defaults (and the fake-model tests) are unaffected.
+        extra: dict[str, object] = {}
+        if self.imgsz is not None:
+            extra["imgsz"] = self.imgsz
+        if self.augment:
+            extra["augment"] = True
         results = self._model.track(  # type: ignore[union-attr]
             source=str(video_path),
             tracker=self.tracker,
@@ -75,6 +84,7 @@ class PlayerDetector:
             vid_stride=self.vid_stride,
             stream=True,
             verbose=False,
+            **extra,
         )
         for proc_idx, res in enumerate(results):
             if res.boxes is None or res.boxes.id is None:

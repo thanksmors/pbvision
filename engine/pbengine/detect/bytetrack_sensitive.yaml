@@ -1,0 +1,11 @@
+# ByteTrack tuned for catching far / small / intermittently-seen players (pickleball opponents).
+# Lower thresholds let faint detections spawn and keep tracks; a longer buffer survives occlusions.
+# Pairs with the engine track-stitch and the viewer's per-rally hold. Used by the balanced/max/gpu
+# presets (pbengine.detect.presets). Schema = Ultralytics ByteTrack.
+tracker_type: bytetrack
+track_high_thresh: 0.20   # (default 0.25) first-association threshold — lower keeps weaker boxes
+track_low_thresh: 0.05    # (default 0.10) second-association floor for far/blurred players
+new_track_thresh: 0.10    # (default 0.25) let a faint far player actually start a track
+track_buffer: 60          # (default 30) keep a lost track ~2s @30fps so it re-attaches after occlusion
+match_thresh: 0.80        # IoU match threshold (default 0.80)
+fuse_score: true

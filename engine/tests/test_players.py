@@ -86,3 +86,18 @@ def test_detect_only_model_has_no_keypoints():
     """A plain detector (no res.keypoints) leaves keypoint fields None — backward compatible."""
     tracks = PlayerDetector(_model=_FakeModel([([[0, 0, 10, 10]], [1])])).track("x.mp4")
     assert tracks[0].keypoints_px is None and tracks[0].keypoint_conf is None
+
+
+def test_imgsz_and_augment_forwarded_only_when_set():
+    """imgsz/augment reach Ultralytics when set, and are omitted otherwise (back-compat)."""
+    base = _FakeModel([([[0, 0, 10, 10]], [1])])
+    PlayerDetector(_model=base).track("x.mp4")
+    assert "imgsz" not in base.calls and "augment" not in base.calls  # defaults: not passed
+
+    tuned = _FakeModel([([[0, 0, 10, 10]], [1])])
+    PlayerDetector(_model=tuned, imgsz=1280, augment=True, conf=0.1,
+                   tracker="bytetrack_sensitive.yaml").track("x.mp4")
+    assert tuned.calls["imgsz"] == 1280
+    assert tuned.calls["augment"] is True
+    assert tuned.calls["conf"] == 0.1
+    assert tuned.calls["tracker"] == "bytetrack_sensitive.yaml"

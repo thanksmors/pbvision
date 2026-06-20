@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -26,13 +26,17 @@ FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
 
 @app.post("/api/matches")
-async def upload_match(file: UploadFile) -> dict[str, str]:
-    """Accept a video upload, start analysis, return the job id."""
+async def upload_match(file: UploadFile, preset: str | None = Form(None)) -> dict[str, str]:
+    """Accept a video upload, start analysis, return the job id.
+
+    ``preset`` selects the player-detection sensitivity (fast / balanced / max / gpu); ``None`` lets
+    :func:`jobs.start_job` fall back to ``PBV_PLAYERS_PRESET`` / the balanced default.
+    """
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="empty upload")
     job_id = jobs.create_job(file.filename or "match.mp4", data)
-    jobs.start_job(job_id)
+    jobs.start_job(job_id, preset=preset)
     return {"job_id": job_id}
 
 

@@ -47,16 +47,17 @@ def create_demo_job() -> str:
     return job_id
 
 
-def start_job(job_id: str, fixture: bool = False) -> None:
+def start_job(job_id: str, fixture: bool = False, preset: str | None = None) -> None:
     """Launch the engine subprocess. Detached: progress is tracked via the status file.
 
     ``fixture=True`` runs the pipeline with scripted synthetic detectors (no ML), used by the
     demo so the full flow works on a CPU-only box with nothing but the core deps installed.
 
-    Real uploads default to CPU-friendly player tracking + **pose** (nano pose weights + frame
-    striding) so a run actually finishes on a laptop *and* produces skeletons; override via
-    ``PBV_PLAYERS_WEIGHTS`` / ``PBV_VID_STRIDE`` (e.g. ``yolo11m-pose.pt`` and ``1`` on a GPU box,
-    or a plain detector like ``yolo26m.pt`` to skip skeletons).
+    Real uploads pick a player-detection **preset** (fast / balanced / max / gpu — see
+    :mod:`pbengine.detect.presets`), resolved from the ``preset`` arg → ``PBV_PLAYERS_PRESET`` →
+    ``balanced``. The preset is persisted so a calibrate re-run reuses it. Individual knobs can still
+    override via ``PBV_PLAYERS_WEIGHTS`` / ``PBV_VID_STRIDE`` / ``PBV_PLAYERS_IMGSZ`` /
+    ``PBV_PLAYERS_CONF`` (e.g. a plain detector like ``yolo26m.pt`` to skip skeletons).
     """
     d = job_dir(job_id)
     video = next(d.glob("input.*"))
@@ -78,16 +79,28 @@ def start_job(job_id: str, fixture: bool = False) -> None:
     if fixture:
         cmd.append("--fixture")
     else:
-        cmd += [
-            "--players-weights",
-            os.environ.get("PBV_PLAYERS_WEIGHTS", "yolo11n-pose.pt"),
-            "--vid-stride",
-            os.environ.get("PBV_VID_STRIDE", "3"),
-        ]
+        # Resolve + persist the preset (so a later calibrate re-run reuses the same one).
+        preset = preset or _read_preset(d) or os.environ.get("PBV_PLAYERS_PRESET", "balanced")
+        (d / "preset.txt").write_text(preset)
+        cmd += ["--players-preset", preset]
+        # Optional per-knob overrides from the environment.
+        for env, flag in (("PBV_PLAYERS_WEIGHTS", "--players-weights"),
+                          ("PBV_VID_STRIDE", "--vid-stride"),
+                          ("PBV_PLAYERS_IMGSZ", "--players-imgsz"),
+                          ("PBV_PLAYERS_CONF", "--players-conf")):
+            val = os.environ.get(env)
+            if val:
+                cmd += [flag, val]
         corners = d / "court.json"
         if corners.exists():  # manual calibration overrides auto court detection
             cmd += ["--court-corners", str(corners)]
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _read_preset(d: Path) -> str | None:
+    """The player-detection preset persisted for this job, if any (reused on calibrate re-run)."""
+    f = d / "preset.txt"
+    return f.read_text().strip() if f.exists() else None
 
 
 def video_path(job_id: str) -> Path | None:

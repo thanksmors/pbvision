@@ -45,6 +45,15 @@
 
   <div class="card">
     <input type="file" id="file" accept="video/*" />
+    <label title="Player-detection sensitivity. Higher = catches far players and smoother motion, but slower.">
+      Detection:
+      <select id="preset">
+        <option value="fast">Fast (quick, may miss far players)</option>
+        <option value="balanced" selected>Balanced (recommended)</option>
+        <option value="max">Max (best capture, slow on CPU)</option>
+        <option value="gpu">GPU (aggressive)</option>
+      </select>
+    </label>
     <button id="upload" class="primary">Analyze</button>
     <button id="demo">Run demo</button>
     <div id="progress" style="display:none; margin-top:1rem;">
@@ -127,6 +136,7 @@ $("upload").onclick = async () => {
   if (!f) return alert("Pick a video first, or use Run demo.");
   const fd = new FormData();
   fd.append("file", f);
+  fd.append("preset", $("preset").value);
   const r = await fetch("/api/matches", { method: "POST", body: fd });
   startPolling((await r.json()).job_id);
 };

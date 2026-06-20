@@ -47,9 +47,25 @@ pip install -e '.[ml]'              # torch + ultralytics + gdown
 git submodule update --init         # vendored TennisCourtDetector
 ./scripts/download_weights.sh       # fetches the court weights via gdown
 
-# Players use yolo26n + frame-striding by default on CPU; override on a GPU box:
-pbengine clip.mp4 -o result.json --players-weights yolo26m.pt --vid-stride 1
+# Player detection ships as sensitivity presets (model + imgsz + conf + stride + tracker):
+pbengine clip.mp4 -o result.json --players-preset max        # best capture (slow on CPU)
+pbengine clip.mp4 -o result.json --players-preset fast       # quick; may miss far players
+# Override any single knob on top of a preset:
+pbengine clip.mp4 -o result.json --players-preset balanced --players-imgsz 1536 --players-conf 0.1
 ```
+
+| preset | model | imgsz | conf | stride | tracker | use |
+|---|---|---|---|---|---|---|
+| `fast` | yolo11n-pose | 640 | 0.30 | 3 | default | quick CPU pass; misses far players, skeletons glide |
+| `balanced` *(default)* | yolo11m-pose | 960 | 0.15 | 1 | sensitive | far players captured, natural motion; minutes/clip on CPU |
+| `max` | yolo11m-pose | 1280 | 0.10 | 1 | sensitive + augment | best capture; slow on CPU |
+| `gpu` | yolo11x-pose | 1280 | 0.10 | 1 | sensitive | for a GPU box |
+
+Higher sensitivity catches far/small players and gives dense, *articulated* poses (vs. interpolated
+gliding) at the cost of speed (imgsz is ~quadratic, stride 1 ~3×) and some extra false positives.
+In the **web app**, pick the preset from the *Detection* dropdown before *Analyze*. Env overrides for
+the API: `PBV_PLAYERS_PRESET`, `PBV_PLAYERS_WEIGHTS`, `PBV_VID_STRIDE`, `PBV_PLAYERS_IMGSZ`,
+`PBV_PLAYERS_CONF` (e.g. a plain detector like `yolo26m.pt` to skip skeletons).
 
 > The court net is **tennis-trained** and in practice localizes a pickleball court poorly
 > (often 0/4 corners). The reliable path is **manual calibration**: in the viewer, click

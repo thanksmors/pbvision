@@ -326,17 +326,36 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="run with scripted synthetic detectors (no ML); generates the video if missing",
     )
+    from pbengine.detect.presets import DEFAULT_PRESET, PRESETS
+
     parser.add_argument(
-        "--players-weights",
-        default="yolo11m-pose.pt",
-        help="Ultralytics weights for player tracking + pose (use yolo11n-pose.pt on CPU; "
+        "--players-preset",
+        choices=sorted(PRESETS),
+        default=DEFAULT_PRESET,
+        help="player-detection sensitivity bundle (model/imgsz/conf/stride/tracker): "
+             "fast (quick, misses far players) → balanced → max → gpu. Individual flags below override.",
+    )
+    # These override the preset when given; left unset (None) they keep the preset's value.
+    parser.add_argument(
+        "--players-weights", default=None,
+        help="override the preset's Ultralytics weights (e.g. yolo11n-pose.pt on CPU; "
              "a plain detector like yolo26m.pt skips skeletons)",
     )
     parser.add_argument(
-        "--vid-stride",
-        type=int,
-        default=1,
-        help="process every Nth video frame for player tracking (speeds up CPU runs)",
+        "--vid-stride", type=int, default=None,
+        help="override: process every Nth video frame for player tracking (1 = densest/best motion)",
+    )
+    parser.add_argument(
+        "--players-imgsz", type=int, default=None,
+        help="override: inference resolution (e.g. 1280) — higher resolves far players, slower",
+    )
+    parser.add_argument(
+        "--players-conf", type=float, default=None,
+        help="override: detection confidence floor (lower catches faint far players, more false +ve)",
+    )
+    parser.add_argument(
+        "--players-augment", action=argparse.BooleanOptionalAction, default=None,
+        help="override: test-time augmentation (multi-scale) — helps small players, ~2-3x slower",
     )
     parser.add_argument(
         "--court-corners",
@@ -361,11 +380,18 @@ def main(argv: list[str] | None = None) -> int:
             "ball_tracker": ball,
         }
     else:
-        # Real run: configure the player detector for the chosen weights / stride. Court and
-        # ball default to their real (lazy) detectors and skip gracefully if not installed.
+        # Real run: build the player detector from the chosen sensitivity preset, with any explicit
+        # per-knob flags overriding it. Court and ball default to their real (lazy) detectors.
+        from pbengine.detect.presets import build_player_detector
+
         injected = {
-            "player_detector": PlayerDetector(
-                weights=args.players_weights, vid_stride=args.vid_stride
+            "player_detector": build_player_detector(
+                args.players_preset,
+                weights=args.players_weights,
+                vid_stride=args.vid_stride,
+                imgsz=args.players_imgsz,
+                conf=args.players_conf,
+                augment=args.players_augment,
             )
         }
         # Manual court calibration overrides automatic detection when corners were provided.
