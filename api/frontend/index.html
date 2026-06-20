@@ -85,6 +85,17 @@
     <!-- Red ticks mark unbridged ball drop-outs in the active point; click one to jump there. -->
     <div id="gapbar" title="Ball-tracking gaps in the selected point — click a tick to jump"></div>
 
+    <div id="layers" class="card" style="display:flex; gap:.9rem; flex-wrap:wrap; align-items:center; padding:.5rem .8rem; margin:.5rem 0;">
+      <span class="muted">Layers:</span>
+      <label><input type="checkbox" id="ly_skeletons" checked> Skeletons</label>
+      <label><input type="checkbox" id="ly_boxes" checked> Boxes + IDs</label>
+      <label><input type="checkbox" id="ly_paddles" checked> Paddles</label>
+      <label><input type="checkbox" id="ly_ball" checked> Ball</label>
+      <label><input type="checkbox" id="ly_trail" checked> Trail</label>
+      <label><input type="checkbox" id="ly_trajectory" checked> Trajectory</label>
+      <label><input type="checkbox" id="ly_bounces" checked> Bounces</label>
+    </div>
+
     <div id="panel3d" style="display:none; margin-top:1rem;">
       <h2 style="font-size:1.05rem; margin-bottom:.2rem;">3D ball trajectory</h2>
       <div class="muted" style="margin-bottom:.3rem;">drag = rotate · scroll = zoom · right-drag = pan ·
@@ -101,6 +112,15 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let MATCH = null, ACTIVE = -1;
+
+// Replay layer visibility (applies to the 2D overlay and the 3D view). All on by default; toggled by
+// the checkboxes above. The 2D overlay redraws immediately; the 3D view reads these live each frame.
+const LAYERS = { skeletons: true, boxes: true, paddles: true, ball: true, trail: true,
+                 trajectory: true, bounces: true };
+for (const k of Object.keys(LAYERS)) {
+  const el = $("ly_" + k);
+  if (el) el.addEventListener("change", () => { LAYERS[k] = el.checked; if (MATCH) drawPoint(ACTIVE); });
+}
 
 $("upload").onclick = async () => {
   const f = $("file").files[0];
@@ -399,6 +419,7 @@ function drawCal() {
 
 function selectPoint(i) {
   ACTIVE = i;
+  if (window.resetBall3d) window.resetBall3d();  // don't carry the previous point's ball over
   renderPoints();
   const fps = MATCH.video.fps || 30;
   $("video").currentTime = MATCH.points[i].start_frame / fps;
@@ -451,19 +472,39 @@ const COCO_SKELETON = [
 ];
 const KP_CONF_MIN = 0.3;  // below this a keypoint is unreliable — don't draw it
 
+// Does this player appear anywhere in the rally `pt` (with a ~1s margin)? If so we keep them on
+// screen for the whole rally rather than blinking them out across detection gaps.
+function playerInPoint(pl, pt) {
+  if (!pt) return false;
+  const m = MATCH.video.fps || 30;  // ~1s margin
+  return pl.positions.some((p) => p.frame >= pt.start_frame - m && p.frame <= pt.end_frame + m);
+}
+
+// Nearest stored position to `frame`. Inside a selected point, every player who appears in that rally
+// is held on screen for the whole rally (nearest pose, no frame cap) — short gaps already carry smooth
+// interpolated poses, longer ones hold the last pose. Outside a point (free scrub) fall back to a ~1s
+// window so a stale pose doesn't linger. Used by both the 2D overlay and the 3D view.
+function nearestPosition(pl, frame, pt) {
+  let best = null, bestD = Infinity;
+  for (const pos of pl.positions) {
+    const d = Math.abs(pos.frame - frame);
+    if (d < bestD) { bestD = d; best = pos; }
+  }
+  if (!best) return null;
+  if (!(pt && playerInPoint(pl, pt)) && bestD > (MATCH.video.fps || 30)) return null;
+  return best;
+}
+
 function drawPlayers(ctx, c, frame) {
-  if (!MATCH.players) return;
+  if (!MATCH.players || (!LAYERS.skeletons && !LAYERS.boxes && !LAYERS.paddles)) return;
   ctx.lineWidth = 2;
   ctx.font = "12px system-ui";
+  const pt = ACTIVE >= 0 ? MATCH.points[ACTIVE] : null;
   for (const pl of MATCH.players) {
-    let best = null, bestD = Infinity;
-    for (const pos of pl.positions) {
-      const d = Math.abs(pos.frame - frame);
-      if (d < bestD) { bestD = d; best = pos; }
-    }
-    if (!best || bestD > 15) continue; // don't draw a stale pose far from the current frame
+    const best = nearestPosition(pl, frame, pt);
+    if (!best) continue;
     // Faint bbox + id label for context; the skeleton is the primary cue.
-    if (best.bbox_px) {
+    if (LAYERS.boxes && best.bbox_px) {
       const [x1, y1] = toCanvas([best.bbox_px[0], best.bbox_px[1]], c);
       const [x2, y2] = toCanvas([best.bbox_px[2], best.bbox_px[3]], c);
       ctx.strokeStyle = "rgba(80,220,120,.30)";
@@ -471,21 +512,18 @@ function drawPlayers(ctx, c, frame) {
       ctx.fillStyle = "rgba(80,220,120,.95)";
       ctx.fillText(`#${pl.track_id}` + (pl.team ? ` (${pl.team})` : ""), x1 + 2, Math.max(12, y1 - 3));
     }
-    drawSkeleton(ctx, c, best);
-    drawPaddle(ctx, c, best);
+    if (LAYERS.skeletons) drawSkeleton(ctx, c, best);
+    if (LAYERS.paddles) drawPaddle(ctx, c, best);
   }
 }
 
 // Gather each player's nearest-frame 3D pose/paddle for the three.js view.
 function players3dAtFrame(frame) {
   const out = [];
+  const pt = ACTIVE >= 0 ? MATCH.points[ACTIVE] : null;
   for (const pl of (MATCH.players || [])) {
-    let best = null, bestD = Infinity;
-    for (const pos of pl.positions) {
-      const d = Math.abs(pos.frame - frame);
-      if (d < bestD) { bestD = d; best = pos; }
-    }
-    if (!best || bestD > 15) continue;
+    const best = nearestPosition(pl, frame, pt);  // held for the whole rally (see nearestPosition)
+    if (!best) continue;
     // Always emit the foot (normalized court_xy) so a null/degenerate 3D lift falls back to a
     // standing stick instead of the skeleton vanishing.
     out.push({ pose: best.pose_world_ft || null, conf: best.pose_conf,
@@ -600,6 +638,7 @@ function drawPoint(i) {
 
   // Faint full-match ball track, so the ball reads even before a point is selected. The bright
   // cyan for the selected point draws on top below.
+  if (LAYERS.trajectory) {
   ctx.strokeStyle = "rgba(0,200,255,.12)";
   ctx.lineWidth = 1;
   (MATCH.points || []).forEach((p) => {
@@ -612,12 +651,13 @@ function drawPoint(i) {
     });
     ctx.stroke();
   });
+  }
 
   if (i < 0 || !MATCH.points[i]) return; // players-only run: nothing more to draw
 
   // Ball trajectory for the active point.
   const traj = MATCH.points[i].ball_trajectory;
-  if (traj && traj.length) {
+  if (LAYERS.trajectory && traj && traj.length) {
     // Continuous polyline (now gap-filled). Measured points get a solid cyan dot; physics-filled
     // points are drawn dimmer/smaller so measured vs interpolated stays visually distinct.
     ctx.strokeStyle = "rgba(0,200,255,.55)";
@@ -638,6 +678,7 @@ function drawPoint(i) {
   }
 
   // Bounce markers.
+  if (LAYERS.bounces && traj && traj.length) {
   ctx.fillStyle = "rgba(255,80,80,.95)";
   (MATCH.points[i].bounces || []).forEach((b) => {
     const sample = traj.find((s) => s.frame === b.frame) || traj[0];
@@ -646,9 +687,10 @@ function drawPoint(i) {
     ctx.arc(x, y, 5, 0, 2 * Math.PI);
     ctx.fill();
   });
+  }
 
   // Live 3D readout: ball marker + height/speed HUD at the current frame.
-  if (traj && traj.length) {
+  if (LAYERS.ball && traj && traj.length) {
     const frame = $("video").currentTime * fps;
     let cur = null, bestD = Infinity;
     for (const s of traj) {
@@ -749,34 +791,37 @@ window.renderPlayers3d = function (framePlayers) {
   for (const fp of (framePlayers || [])) {
     const kp = fp.pose;
     const zmax = kp ? Math.max(...kp.map((p) => p[2])) : NaN;
-    if (!kp || !isFinite(zmax) || zmax < 1.0) {
+    const good = kp && isFinite(zmax) && zmax >= 1.0;
+    if (LAYERS.skeletons && !good) {
       // No / degenerate / collapsed monocular lift -> stand a vertical stick at the foot point so
       // the player never disappears in 3D. Foot from keypoints if present, else the court_xy foot.
       let ax, ay;
       if (kp) { ax = (kp[15][0] + kp[16][0]) / 2; ay = (kp[15][1] + kp[16][1]) / 2; }
       else if (fp.footCourt) { ax = fp.footCourt[0] * W; ay = fp.footCourt[1] * L; }
-      else continue;
-      dynPlayers.push(line([P(ax, ay, 0), P(ax, ay, 5.5)], COL, 0.9));
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 10),
-        new THREE.MeshBasicMaterial({ color: COL }));
-      head.position.copy(P(ax, ay, 5.5)); scene.add(head); dynPlayers.push(head);
-      continue;
+      else { ax = ay = null; }
+      if (ax !== null) {
+        dynPlayers.push(line([P(ax, ay, 0), P(ax, ay, 5.5)], COL, 0.9));
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 10),
+          new THREE.MeshBasicMaterial({ color: COL }));
+        head.position.copy(P(ax, ay, 5.5)); scene.add(head); dynPlayers.push(head);
+      }
+    } else if (LAYERS.skeletons && good) {
+      const cf = fp.conf || kp.map(() => 1);
+      for (const [a, b] of SKELE) {
+        if (cf[a] < 0.3 || cf[b] < 0.3) continue;
+        dynPlayers.push(line([P(kp[a][0], kp[a][1], kp[a][2]),
+                              P(kp[b][0], kp[b][1], kp[b][2])], COL, 0.95));
+      }
+      // Joint spheres for readability (WebGL line width is unreliable) — gives the skeleton body.
+      const jointGeo = new THREE.SphereGeometry(0.13, 8, 8);
+      const jointMat = new THREE.MeshBasicMaterial({ color: COL });
+      kp.forEach((p, k) => {
+        if (cf[k] < 0.3) return;
+        const j = new THREE.Mesh(jointGeo, jointMat);
+        j.position.copy(P(p[0], p[1], p[2])); scene.add(j); dynPlayers.push(j);
+      });
     }
-    const cf = fp.conf || kp.map(() => 1);
-    for (const [a, b] of SKELE) {
-      if (cf[a] < 0.3 || cf[b] < 0.3) continue;
-      dynPlayers.push(line([P(kp[a][0], kp[a][1], kp[a][2]),
-                            P(kp[b][0], kp[b][1], kp[b][2])], COL, 0.95));
-    }
-    // Joint spheres for readability (WebGL line width is unreliable) — gives the skeleton body.
-    const jointGeo = new THREE.SphereGeometry(0.13, 8, 8);
-    const jointMat = new THREE.MeshBasicMaterial({ color: COL });
-    kp.forEach((p, k) => {
-      if (cf[k] < 0.3) return;
-      const j = new THREE.Mesh(jointGeo, jointMat);
-      j.position.copy(P(p[0], p[1], p[2])); scene.add(j); dynPlayers.push(j);
-    });
-    if (fp.paddle) {
+    if (LAYERS.paddles && fp.paddle) {
       const m = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 10),
         new THREE.MeshBasicMaterial({ color: 0xff9600 }));
       m.position.copy(P(fp.paddle[0], fp.paddle[1], fp.paddle[2]));
@@ -786,16 +831,18 @@ window.renderPlayers3d = function (framePlayers) {
 };
 
 // Live ball marker that follows playback. With bridge_world_ft guaranteeing a 3D position at every
-// rally frame, `ball` is null only for a point with no 3D at all (uncalibrated) — normally the
-// marker stays continuous (interpolated stretches are tinted grey). Mirrors renderPlayers3d.
+// rally frame, `ball` is null only for a transient miss — we hold the last known ball so the marker
+// never blinks (lastBall is cleared on point change via resetBall3d). Mirrors renderPlayers3d.
 const BALL_COLD = new THREE.Color(0x3b82f6), BALL_HOT = new THREE.Color(0xef4444);
-let dynBall = [];
+let dynBall = [], lastBall = null;
+window.resetBall3d = function () { lastBall = null; };  // call when switching points
 window.renderBall3d = function (ball) {
   if (!renderer) return;  // 3D scene not built yet
   for (const o of dynBall) scene.remove(o);
   dynBall = [];
-  if (!ball) return;      // drop-out: no marker this frame
-  if (ball.trail && ball.trail.length > 1) {
+  if (ball) lastBall = ball; else ball = lastBall;  // hold last position so the marker never blinks
+  if (!ball || !LAYERS.ball) return;
+  if (LAYERS.trail && ball.trail && ball.trail.length > 1) {
     dynBall.push(line(ball.trail.map((w) => P(w[0], w[1], w[2])), 0xfde68a, 0.5));
   }
   const col = ball.interpolated
