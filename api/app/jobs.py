@@ -66,6 +66,7 @@ def start_job(job_id: str, fixture: bool = False, preset: str | None = None) -> 
     _write_status(job_id, JobStatus(job_id=job_id, state="pending"))
     cmd = [
         sys.executable,
+        "-u",  # unbuffered, so progress lines land in run.log live (tail -f)
         "-m",
         "pbengine.pipeline",
         str(video),
@@ -94,7 +95,23 @@ def start_job(job_id: str, fixture: bool = False, preset: str | None = None) -> 
         corners = d / "court.json"
         if corners.exists():  # manual calibration overrides auto court detection
             cmd += ["--court-corners", str(corners)]
-    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Capture stdout+stderr to a per-job log so progress (frame X/Y, ETA) and tracebacks are
+    # visible — `tail -f data/<job>/run.log` or the UI log panel — instead of discarded.
+    log = open(d / "run.log", "wb")  # noqa: SIM115 (handed to the detached child)
+    subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
+
+
+def read_log_tail(job_id: str, max_bytes: int = 8000) -> str:
+    """Return the tail (~last ``max_bytes``) of a job's run.log, or '' if there is none yet."""
+    f = job_dir(job_id) / "run.log"
+    if not f.exists():
+        return ""
+    with f.open("rb") as fh:
+        try:
+            fh.seek(-max_bytes, 2)
+        except OSError:
+            fh.seek(0)
+        return fh.read().decode("utf-8", "replace")
 
 
 def _read_preset(d: Path) -> str | None:

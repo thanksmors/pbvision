@@ -10,6 +10,9 @@ others. Heavy imports are local so the rest of the engine works without the ``ml
 
 from __future__ import annotations
 
+import math
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -62,11 +65,21 @@ class PlayerDetector:
                 ) from exc
             self._model = YOLO(self.weights)
 
-    def track(self, video_path: str | Path) -> list[PlayerTrack]:
+    def track(
+        self,
+        video_path: str | Path,
+        *,
+        total_frames: int | None = None,
+        progress_cb: Callable[[int, int], None] | None = None,
+    ) -> list[PlayerTrack]:
         """Run detection+tracking over a video, returning per-frame player tracks.
 
         Frame indices are reported in *source-video* space (``processed_index * vid_stride``)
         so they line up with the court homography and ball trajectory regardless of striding.
+
+        ``total_frames`` (source-video frame count) enables a throttled progress log with an ETA;
+        ``progress_cb(done, total)`` is called on the same throttle so the API can advance its bar.
+        Both are optional — omitted, behavior is unchanged.
         """
         self._ensure_model()
         tracks: list[PlayerTrack] = []
@@ -86,7 +99,18 @@ class PlayerDetector:
             verbose=False,
             **extra,
         )
+        # Processed-frame total (account for striding) for the percent/ETA readout.
+        total_proc = max(1, math.ceil(total_frames / self.vid_stride)) if total_frames else 0
+        t0 = last = time.monotonic()
+        proc_idx = -1
         for proc_idx, res in enumerate(results):
+            done = proc_idx + 1
+            now = time.monotonic()
+            if now - last >= 2.0:  # throttle so the log/ETA isn't per-frame spam
+                last = now
+                _report_progress("players", done, total_proc, now - t0)
+                if progress_cb is not None:
+                    progress_cb(done, total_proc)
             if res.boxes is None or res.boxes.id is None:
                 continue
             frame = proc_idx * self.vid_stride
@@ -102,4 +126,27 @@ class PlayerDetector:
                     PlayerTrack(track_id=int(tid), frame=frame, bbox_px=tuple(box),
                                 keypoints_px=kp, keypoint_conf=cf)
                 )
+        done = proc_idx + 1
+        if done:
+            _report_progress("players", done, total_proc or done, time.monotonic() - t0)
+            if progress_cb is not None:
+                progress_cb(done, total_proc or done)
         return tracks
+
+
+def _fmt_dur(secs: float) -> str:
+    secs = int(max(secs, 0))
+    return f"{secs // 60}:{secs % 60:02d}"
+
+
+def _report_progress(stage: str, done: int, total: int, elapsed: float) -> None:
+    """Print a throttled, flushed progress line with rate + ETA (captured to the per-job log)."""
+    rate = done / elapsed if elapsed > 0 else 0.0
+    if total > 0:
+        pct = 100.0 * done / total
+        eta = (total - done) / rate if rate > 0 else 0.0
+        msg = f"{stage}: {done}/{total} ({pct:.0f}%) · {rate:.1f} fps · " \
+              f"elapsed {_fmt_dur(elapsed)} · ETA {_fmt_dur(eta)}"
+    else:
+        msg = f"{stage}: {done} frames · {rate:.1f} fps · elapsed {_fmt_dur(elapsed)}"
+    print(msg, flush=True)

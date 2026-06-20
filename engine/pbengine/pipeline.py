@@ -15,6 +15,7 @@ rented GPU box::
 from __future__ import annotations
 
 import argparse
+import time
 import uuid
 from collections import defaultdict
 from pathlib import Path
@@ -75,6 +76,8 @@ def analyze_match(
 
     report("probe", 0.02)
     meta = probe(video_path)
+    print(f"video: {meta.width}x{meta.height} @ {meta.fps:.0f}fps · {meta.frames} frames "
+          f"(~{meta.frames / meta.fps / 60:.1f} min)", flush=True)
 
     # Each model-backed stage degrades gracefully: if its weights/deps are missing the stage is
     # skipped (empty output + a warning) so the engine can run one model at a time.
@@ -97,12 +100,30 @@ def analyze_match(
     report("players", 0.3)
     players = _skip_if_unavailable(
         "players", warnings, [], _track_players, video_path, homography, player_detector, camera,
-        meta.fps,
+        meta.fps, report, meta.frames,
     )
 
     report("ball", 0.6)
+    # Throttle the ball tracker's per-frame callback into the ball span (0.60–0.85) + a logged ETA.
+    _ball = {"t0": time.monotonic(), "last": 0.0}
+
+    def ball_prog(phase: str, done: int, total: int) -> None:
+        now = time.monotonic()
+        if now - _ball["last"] < 2.0:
+            return
+        _ball["last"] = now
+        el = now - _ball["t0"]
+        rate = done / el if el > 0 else 0.0
+        if total:
+            eta = (total - done) / rate if rate > 0 else 0.0
+            report(f"ball {done}/{total} ({100 * done // total}%) {rate:.1f}fps ETA "
+                   f"{int(eta) // 60}:{int(eta) % 60:02d}", 0.60 + 0.25 * (done / total))
+        else:
+            report(f"ball {done} frames {rate:.1f}fps", 0.62)
+
     ball = _skip_if_unavailable(
-        "ball", warnings, [], ball_tracker.track, video_path, homography=homography, stride=stride
+        "ball", warnings, [], ball_tracker.track, video_path, homography=homography, stride=stride,
+        progress=ball_prog,
     )
 
     report("rallies", 0.85)
@@ -161,7 +182,7 @@ def _solve_court(
 
 def _track_players(
     video_path: Path, homography: np.ndarray | None, detector: PlayerDetector, camera=None,
-    fps: float = 30.0,
+    fps: float = 30.0, status_cb: StatusCb | None = None, total_frames: int | None = None,
 ) -> list[Player]:
     """Track players, project feet to court coords, lift pose to real 3D, assign teams by side."""
     from pbengine.court.homography import project
@@ -177,7 +198,13 @@ def _track_players(
     # First pass: gather raw per-frame detections per track + side votes (the 3D solve needs each
     # track's stable forward direction and runs in frame order with temporal state, so it can't be
     # done in this interleaved loop).
-    tracks = detector.track(video_path)
+    # Advance the players span (0.30–0.60) as frames stream so the API bar moves and status shows
+    # the live frame count instead of parking at 30%.
+    prog = None
+    if status_cb is not None:
+        prog = lambda done, total: status_cb(  # noqa: E731
+            f"players {done}/{total}", 0.30 + 0.30 * (done / total if total else 0))
+    tracks = detector.track(video_path, total_frames=total_frames, progress_cb=prog)
     raw_by_id: dict[int, list[dict]] = defaultdict(list)
     side_votes: dict[int, list[str]] = defaultdict(list)
     for t in tracks:
@@ -384,24 +411,36 @@ def main(argv: list[str] | None = None) -> int:
         # per-knob flags overriding it. Court and ball default to their real (lazy) detectors.
         from pbengine.detect.presets import build_player_detector
 
-        injected = {
-            "player_detector": build_player_detector(
-                args.players_preset,
-                weights=args.players_weights,
-                vid_stride=args.vid_stride,
-                imgsz=args.players_imgsz,
-                conf=args.players_conf,
-                augment=args.players_augment,
-            )
-        }
+        pd = build_player_detector(
+            args.players_preset,
+            weights=args.players_weights,
+            vid_stride=args.vid_stride,
+            imgsz=args.players_imgsz,
+            conf=args.players_conf,
+            augment=args.players_augment,
+        )
+        injected = {"player_detector": pd}
+        # Log the resolved player config + device up front so a slow run's ETA is interpretable.
+        try:
+            import torch  # noqa: PLC0415
+
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        except Exception:
+            device = "unknown"
+        print(f"players: preset={args.players_preset} weights={pd.weights} imgsz={pd.imgsz} "
+              f"conf={pd.conf} vid_stride={pd.vid_stride} tracker={Path(pd.tracker).name} "
+              f"augment={pd.augment} device={device}", flush=True)
         # Manual court calibration overrides automatic detection when corners were provided.
         if args.court_corners:
             from pbengine.court.detector import ManualCourtDetector, load_corners
 
             injected["court_detector"] = ManualCourtDetector(load_corners(args.court_corners))
 
+    t_start = time.monotonic()
+
     def cb(stage: str, pct: float) -> None:
-        print(f"[{pct:5.0%}] {stage}", flush=True)
+        ts = time.strftime("%H:%M:%S")
+        print(f"[{ts}] [{pct:5.0%}] +{int(time.monotonic() - t_start)}s {stage}", flush=True)
         if status_path is not None:
             state = "done" if stage == "done" else "running"
             _write_status(status_path, args.job_id, state, stage, pct)

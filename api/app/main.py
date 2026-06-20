@@ -101,6 +101,12 @@ def job_status(job_id: str) -> JSONResponse:
     return JSONResponse(jobs.read_status(job_id).model_dump())
 
 
+@app.get("/api/jobs/{job_id}/log")
+def job_log(job_id: str) -> Response:
+    """Tail of the engine's run.log for this job (progress + any traceback), for the UI log panel."""
+    return Response(content=jobs.read_log_tail(job_id), media_type="text/plain")
+
+
 @app.get("/api/matches/{job_id}")
 def match_result(job_id: str) -> Response:
     result = jobs.read_result(job_id)

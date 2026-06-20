@@ -59,6 +59,9 @@
     <div id="progress" style="display:none; margin-top:1rem;">
       <progress id="bar" max="1" value="0"></progress>
       <div id="stage" class="muted"></div>
+      <pre id="log" style="display:none; max-height:200px; overflow:auto; background:#0d1117;
+        color:#c9d1d9; font-size:.78rem; padding:.5rem .7rem; border-radius:6px; margin-top:.5rem;
+        white-space:pre-wrap;"></pre>
     </div>
   </div>
 
@@ -152,10 +155,24 @@ function startPolling(jobId) {
   poll(jobId);
 }
 
+async function refreshLog(jobId) {
+  try {
+    const txt = await (await fetch(`/api/jobs/${jobId}/log`)).text();
+    const el = $("log");
+    if (txt) {
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+      el.style.display = "block";
+      el.textContent = txt;
+      if (atBottom) el.scrollTop = el.scrollHeight;  // follow the tail unless user scrolled up
+    }
+  } catch { /* log not ready yet */ }
+}
+
 async function poll(jobId) {
   const s = await (await fetch(`/api/jobs/${jobId}`)).json();
   $("bar").value = s.progress || 0;
   $("stage").textContent = `${s.state} — ${s.stage || ""} ${Math.round((s.progress || 0) * 100)}%`;
+  refreshLog(jobId);  // stream the engine's run.log (progress + ETA, or a traceback on failure)
   if (s.state === "done") return showResult(jobId);
   if (s.state === "error") { $("stage").textContent = "error: " + s.message; return; }
   setTimeout(() => poll(jobId), 800);

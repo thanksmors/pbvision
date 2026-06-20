@@ -103,7 +103,7 @@ class FixturePlayerDetector:
     total_frames: int = 200
     step: int = 10
 
-    def track(self, video_path=None):  # noqa: ARG002 - video ignored
+    def track(self, video_path=None, **_kw):  # noqa: ARG002 - video ignored; accept progress kwargs
         from pbengine.detect.players import PlayerTrack
 
         h = fixture_homography()
@@ -133,8 +133,8 @@ class FixtureBallTracker:
 
     samples: list[BallSample] = field(default_factory=list)
 
-    def track(self, video_path=None, homography=None, stride: int = 1):  # noqa: ARG002
-        return list(self.samples)
+    def track(self, video_path=None, homography=None, stride: int = 1, **_kw):  # noqa: ARG002
+        return list(self.samples)  # accept progress kwarg from the pipeline; nothing to report
 
 
 # --- Scripted ball trajectories ----------------------------------------------------------

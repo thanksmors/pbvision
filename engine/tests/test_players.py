@@ -88,6 +88,22 @@ def test_detect_only_model_has_no_keypoints():
     assert tracks[0].keypoints_px is None and tracks[0].keypoint_conf is None
 
 
+def test_progress_cb_reports_processed_frame_counts():
+    """track() reports progress to the callback with the stride-adjusted total (back-compat: off by default)."""
+    frames = [([[0, 0, 10, 10]], [1])] * 6
+    seen: list[tuple[int, int]] = []
+    PlayerDetector(_model=_FakeModel(frames), vid_stride=2).track(
+        "x.mp4", total_frames=12, progress_cb=lambda done, total: seen.append((done, total)))
+    assert seen, "progress_cb should be called at least once (final flush)"
+    done, total = seen[-1]
+    assert done == 6            # all 6 processed frames seen
+    assert total == 6           # 12 source frames / vid_stride 2
+    assert all(d <= total for d, total in seen)
+
+    # No callback / no total -> unchanged behavior, no error.
+    assert len(PlayerDetector(_model=_FakeModel(frames)).track("x.mp4")) == 6
+
+
 def test_imgsz_and_augment_forwarded_only_when_set():
     """imgsz/augment reach Ultralytics when set, and are omitted otherwise (back-compat)."""
     base = _FakeModel([([[0, 0, 10, 10]], [1])])
