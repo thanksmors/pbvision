@@ -17,6 +17,7 @@ from pbengine.ball.trajectory3d import (
     _Obs,
     _fit_parabola,
     _segment_bounds,
+    bridge_world_ft,
     densify_rally,
     fill_gaps_3d,
     reconstruct_3d,
@@ -306,3 +307,34 @@ def test_densify_rally_anchors_bounce_at_floor():
     z9 = next(s for s in out if s.frame == 9).world_ft[2]
     z11 = next(s for s in out if s.frame == 11).world_ft[2]
     assert z9 < 4.0 and z11 < 4.0
+
+
+def test_bridge_world_ft_fills_2d_only_frames_on_their_rays():
+    p_gt = _lookat_camera()
+    cam = recover_camera(_homography_from_camera(p_gt), W, H)
+    # A smooth 3D arc; every frame has a pixel detection, but a middle run (7..13) was left without a
+    # 3D fit (world_ft None) and the last two frames (19, 20) are an edge run (3D only on the left).
+    arc = [(8.0, 6.0 + 1.4 * f, 3.0 + 0.9 * f - 0.05 * f * f) for f in range(21)]
+    traj = []
+    for f, (X, Y, Z) in enumerate(arc):
+        px = cam.project(np.array([[X, Y, max(Z, 0.0)]]))[0]
+        has3d = not (7 <= f <= 13 or f >= 19)
+        traj.append(BallSample(
+            frame=f, px=(float(px[0]), float(px[1])), conf=1.0,
+            world_ft=(X, Y, max(Z, 0.0)) if has3d else None))
+
+    out = bridge_world_ft(traj, cam, fps=30.0)
+    # Every frame now carries a 3D position; nothing blinks.
+    assert all(s.world_ft is not None for s in out)
+    # Each bridged point lies on its detection's ray -> reprojects exactly to the input pixel.
+    for s_in, s_out in zip(traj, out):
+        if s_in.world_ft is None:
+            assert s_out.interpolated
+            rp = cam.project(np.array([list(s_out.world_ft)]))[0]
+            assert abs(rp[0] - s_in.px[0]) < 1e-3 and abs(rp[1] - s_in.px[1]) < 1e-3
+    # Bracketed fills ride the chord between the two 3D knots (monotonic Y, between the endpoints).
+    ys = [s.world_ft[1] for s in out if 7 <= s.frame <= 13]
+    assert ys == sorted(ys) and out[6].world_ft[1] < ys[0] and ys[-1] < out[14].world_ft[1]
+    # Measured 3D samples are untouched; bridged samples get a speed.
+    assert not out[0].interpolated
+    assert all(s.speed_mph is not None for s in out if s.interpolated)

@@ -191,15 +191,21 @@ def _track_players(
         if homography is not None:
             side_votes[t.track_id].append(side_of(court_xy))
 
+    # Merge ByteTrack fragments of the same physical player (occlusion -> new id) so a player stays
+    # one continuous person; the wider bridge cap below then glides the pose across the occlusion.
+    from pbengine.players.stitch import max_stitch_frames, stitch_tracks
+
+    groups = stitch_tracks(raw_by_id, side_votes, fps)
+
     players: list[Player] = []
-    for tid, recs in raw_by_id.items():
-        votes = side_votes.get(tid, [])
+    for group in groups:
+        recs = sorted((r for tid in group for r in raw_by_id[tid]), key=lambda r: r["frame"])
+        votes = [v for tid in group for v in side_votes.get(tid, [])]
         team = Team(max(set(votes), key=votes.count)) if votes else None
         # Players face their opponents across the net: side A (baseline Y=0) faces +Y, side B faces
         # -Y. This known body-forward breaks the monocular front/back depth ambiguity in lift_pose_3d.
         forward = (0.0, -1.0, 0.0) if team == Team.B else (0.0, 1.0, 0.0)
 
-        recs.sort(key=lambda r: r["frame"])
         prev_pose = None  # previous frame's solved 3D pose -> temporal depth-sign consistency
         positions: list[PlayerPosition] = []
         for r in recs:
@@ -223,9 +229,10 @@ def _track_players(
                     paddle_px=paddle_px, paddle_world_ft=paddle_world,
                 )
             )
-        # Bridge short detection dropouts so the skeleton stays continuous in the viewer.
-        positions = interpolate_positions(positions, fps)
-        players.append(Player(track_id=tid, team=team, positions=positions))
+        # Bridge dropouts (incl. the stitched occlusion) so the skeleton glides through rather than
+        # blinking; the cap matches the stitch window so a genuine long absence is still left a hole.
+        positions = interpolate_positions(positions, fps, max_gap_frames=max_stitch_frames(fps))
+        players.append(Player(track_id=min(group), team=team, positions=positions))
     return players
 
 
@@ -277,6 +284,12 @@ def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point
         # Backstop: the physics/2D fills only bridge short within-arc gaps. Linearly fill every frame
         # still missing in the rally span so the stored track is complete for downstream analysis.
         traj = densify_rally(traj, span.start_frame, span.end_frame, bounces, camera, fps)
+        # Guarantee a 3D position at every frame (place the leftover 2D-only detections on their
+        # camera rays, riding the chord between bracketing 3D knots) so the ball never blinks in 3D.
+        if camera is not None:
+            from pbengine.ball.trajectory3d import bridge_world_ft
+
+            traj = bridge_world_ft(traj, camera, fps)
         points.append(
             Point(
                 point_index=i,

@@ -45,15 +45,26 @@ PLAYER_HEIGHT_FT = 5.75  # assumed standing height (~5'9", average player) for t
 _BONE_FRAC = {"shank": 0.246, "thigh": 0.245, "torso": 0.30, "uarm": 0.186, "farm": 0.146,
               "head": 0.16}
 
-# Kinematic chain solved foot-up: (child, parent, bone, forward_tendency). forward_tendency is the
+# Trunk breadths as fractions of stature — biacromial (shoulder) and bi-iliac (hip) widths. These
+# drive the body-yaw refinement (_yaw_pair): the metric width a turned trunk must span to reproject
+# the observed L/R pixel separation tells us how the player is rotated about the vertical.
+SHOULDER_W_FRAC = 0.259
+HIP_W_FRAC = 0.191
+
+# Kinematic chains solved foot-up: (child, parent, bone, forward_tendency). forward_tendency is the
 # sign of the child's typical depth offset from its parent along the body-forward axis (+1 forward,
-# -1 back, 0 axial/upright) — used to pick the depth root on the seed frame.
-_CHAIN = (
+# -1 back, 0 axial/upright) — used to pick the depth root on the seed frame. Legs + trunk are solved
+# first (each joint's depth is well-conditioned from its bone to a parent at a different image
+# location); the trunk pairs then get a yaw refinement, and the arms are solved last against the
+# resulting dynamic body-forward.
+_LEG_TRUNK_CHAIN = (
     (L_KNEE, L_ANKLE, "shank", +1), (R_KNEE, R_ANKLE, "shank", +1),
     (L_HIP, L_KNEE, "thigh", -1), (R_HIP, R_KNEE, "thigh", -1),
     (L_SHOULDER, L_HIP, "torso", 0), (R_SHOULDER, R_HIP, "torso", 0),
-    (L_ELBOW, L_SHOULDER, "uarm", +1), (R_ELBOW, R_SHOULDER, "uarm", +1),
-    (L_WRIST, L_ELBOW, "farm", +1), (R_WRIST, R_ELBOW, "farm", +1),
+)
+_ARM_CHAIN = (
+    (L_ELBOW, L_SHOULDER, "uarm"), (R_ELBOW, R_SHOULDER, "uarm"),
+    (L_WRIST, L_ELBOW, "farm"), (R_WRIST, R_ELBOW, "farm"),
 )
 
 
@@ -111,6 +122,45 @@ def _solve_joint(C, d, parent, L, ftend, sigma, prev):
     return _clamp_z(chosen)
 
 
+def _yaw_pair(P3, iL, iR, width, camera, keypoints_px, conf):
+    """Give a trunk pair (hips or shoulders) real thickness/orientation via a body-yaw refinement.
+
+    Keeps the pair's well-conditioned midpoint depth (from the bone-length chain) but rotates the two
+    joints about the vertical through that midpoint to the yaw whose ``width``-apart endpoints best
+    reproject the observed L/R pixels. Front-on -> the bar stays lateral (no depth); turned -> the near
+    joint comes forward, the far one back. Solving *orientation* (a normalized, clamped quantity) this
+    way avoids the depth blow-up of inferring a trunk's absolute depth from its width. Endpoints land
+    on a horizontal bar through the midpoint; a no-op when either keypoint is low-confidence.
+    """
+    if conf[iL] < _CONF_FLOOR or conf[iR] < _CONF_FLOOR or P3[iL] is None or P3[iR] is None:
+        return
+    M = (P3[iL] + P3[iR]) / 2.0
+    obs = np.array([keypoints_px[iR], keypoints_px[iL]], dtype=float)  # [R, L]
+    half = width / 2.0
+
+    def err(theta):
+        lat = np.array([math.cos(theta), math.sin(theta), 0.0])
+        pts = np.array([M + half * lat, M - half * lat])  # [+lat -> R, -lat -> L]
+        proj = camera.project(pts)
+        return float(np.hypot(*(proj - obs).T).sum()), pts
+
+    # Coarse sweep over all yaws, then a local refine (theta and theta+pi swap L/R, so the full
+    # circle covers both assignments).
+    best_t, best = 0.0, None
+    for i in range(72):
+        t = 2.0 * math.pi * i / 72
+        e, _ = err(t)
+        if best is None or e < best:
+            best, best_t = e, t
+    for i in range(-25, 26):
+        t = best_t + (math.pi / 72) * (i / 25.0)
+        e, _ = err(t)
+        if e < best:
+            best, best_t = e, t
+    _, pts = err(best_t)
+    P3[iR], P3[iL] = _clamp_z(pts[0]), _clamp_z(pts[1])
+
+
 def lift_pose_3d(
     keypoints_px: list[tuple[float, float]],
     keypoint_conf: list[float] | None,
@@ -150,11 +200,29 @@ def lift_pose_3d(
         P3[ankle] = _clamp_z(g) if g is not None else foot_ground.copy()
 
     foot = (P3[L_ANKLE] + P3[R_ANKLE]) / 2.0
-    sigma = 1.0 if float((C - foot) @ F) >= 0 else -1.0
+    sigma0 = 1.0 if float((C - foot) @ F) >= 0 else -1.0
 
-    for child, parent, bone, ftend in _CHAIN:
+    # Legs + trunk on their bone-length rays (well-conditioned depth from each parent).
+    for child, parent, bone, ftend in _LEG_TRUNK_CHAIN:
         prev = prev_pose[child] if prev_pose is not None else None
-        P3[child] = _solve_joint(C, rays[child], P3[parent], bones[bone], ftend, sigma, prev)
+        P3[child] = _solve_joint(C, rays[child], P3[parent], bones[bone], ftend, sigma0, prev)
+
+    # Real torso volume: rotate each trunk pair about the vertical to the body yaw that reprojects the
+    # observed L/R pixels at the anthropometric width (keeps the chain's midpoint depth). This is what
+    # turns the flat "upright" trunk into one with genuine front/back thickness and facing.
+    _yaw_pair(P3, L_HIP, R_HIP, HIP_W_FRAC * player_height_ft, camera, keypoints_px, conf)
+    _yaw_pair(P3, L_SHOULDER, R_SHOULDER, SHOULDER_W_FRAC * player_height_ft, camera, keypoints_px, conf)
+
+    # Dynamic body-forward from the yawed shoulder line (perpendicular, horizontal), oriented by the
+    # coarse facing prior; re-solve the arms against it so a reaching arm gets real in/out depth
+    # relative to how the player is actually turned, not just the court axis.
+    F_dyn = np.cross(np.array([0.0, 0.0, 1.0]), P3[R_SHOULDER] - P3[L_SHOULDER])
+    nf = float(np.linalg.norm(F_dyn))
+    F_dyn = (F_dyn / nf if float(F_dyn @ F) >= 0 else -F_dyn / nf) if nf > 1e-6 else F
+    sigma = 1.0 if float((C - foot) @ F_dyn) >= 0 else -1.0
+    for child, parent, bone in _ARM_CHAIN:
+        prev = prev_pose[child] if prev_pose is not None else None
+        P3[child] = _solve_joint(C, rays[child], P3[parent], bones[bone], +1, sigma, prev)
 
     # Head: nose from the shoulder centre; eyes/ears placed at the nose's depth on their own rays.
     mid_sh = (P3[L_SHOULDER] + P3[R_SHOULDER]) / 2.0

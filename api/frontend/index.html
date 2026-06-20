@@ -494,12 +494,13 @@ function players3dAtFrame(frame) {
   return out;
 }
 
-// 3D ball position at a frame, plus a short trail of preceding 3D points for motion. Brackets the
-// frame between the nearest samples that have world_ft and linearly interpolates, so the 3D marker
-// stays continuous across the reconstruction gaps (where 2D still shows the ball from px) instead of
-// blinking out. Beyond maxGap / outside a rally it returns null. Presentation-only: the stored
-// trajectory is unchanged.
-function ballAtFrame(traj, frame, maxGap = 30, tol = 6) {
+// 3D ball position at a frame, plus a short trail of preceding 3D points for motion. The engine now
+// guarantees a world_ft at every rally frame (bridge_world_ft places leftover 2D-only detections on
+// their camera rays), so within a point the 3D ball is continuous — we bracket the frame between the
+// enclosing world_ft samples and linearly interpolate, and outside the bracket (a rally's very ends)
+// hold the nearest sample rather than blinking out. Returns null only when a point genuinely carries
+// no 3D at all. Presentation-only: the stored trajectory is unchanged.
+function ballAtFrame(traj, frame) {
   const pts = (traj || []).filter((s) => s.world_ft);  // traj is frame-ordered
   if (!pts.length) return null;
   let lo = -1;
@@ -507,21 +508,17 @@ function ballAtFrame(traj, frame, maxGap = 30, tol = 6) {
   let world, speed, interp, ci;
   if (lo >= 0 && lo + 1 < pts.length) {
     const a = pts[lo], b = pts[lo + 1], span = b.frame - a.frame;
-    if (span > 0 && span <= maxGap) {
-      const t = (frame - a.frame) / span;
-      world = a.world_ft.map((av, k) => av + t * (b.world_ft[k] - av));
-      speed = (a.speed_mph != null && b.speed_mph != null)
-        ? a.speed_mph + t * (b.speed_mph - a.speed_mph) : (a.speed_mph ?? b.speed_mph);
-      interp = a.interpolated || b.interpolated || (frame !== a.frame && frame !== b.frame);
-      ci = t >= 0.5 ? lo + 1 : lo;
-    }
-  }
-  if (world === undefined) {
-    // Outside a bracket (segment start/end) — hold the nearest sample within a small tolerance.
-    let cur = null, bestD = Infinity, idx = -1;
-    pts.forEach((s, j) => { const d = Math.abs(s.frame - frame); if (d < bestD) { bestD = d; cur = s; idx = j; } });
-    if (!cur || bestD > tol) return null;
-    world = cur.world_ft; speed = cur.speed_mph; interp = cur.interpolated; ci = idx;
+    const t = span > 0 ? (frame - a.frame) / span : 0;
+    world = a.world_ft.map((av, k) => av + t * (b.world_ft[k] - av));
+    speed = (a.speed_mph != null && b.speed_mph != null)
+      ? a.speed_mph + t * (b.speed_mph - a.speed_mph) : (a.speed_mph ?? b.speed_mph);
+    interp = a.interpolated || b.interpolated || (frame !== a.frame && frame !== b.frame);
+    ci = t >= 0.5 ? lo + 1 : lo;
+  } else {
+    // Before the first / after the last 3D sample — hold the nearest end (no blink).
+    ci = lo < 0 ? 0 : pts.length - 1;
+    const cur = pts[ci];
+    world = cur.world_ft; speed = cur.speed_mph; interp = cur.interpolated;
   }
   const trail = pts.slice(Math.max(0, ci - 15), ci + 1).map((s) => s.world_ft);  // ~0.5s tail
   return { world_ft: world, speed_mph: speed, interpolated: interp, trail };
@@ -788,9 +785,9 @@ window.renderPlayers3d = function (framePlayers) {
   }
 };
 
-// Live ball marker that rides the static arc and follows playback. `ball` is null during a
-// drop-out, so the marker simply disappears at the untracked moments (the whole point — you can
-// rotate the view and watch exactly where tracking is lost). Mirrors renderPlayers3d.
+// Live ball marker that follows playback. With bridge_world_ft guaranteeing a 3D position at every
+// rally frame, `ball` is null only for a point with no 3D at all (uncalibrated) — normally the
+// marker stays continuous (interpolated stretches are tinted grey). Mirrors renderPlayers3d.
 const BALL_COLD = new THREE.Color(0x3b82f6), BALL_HOT = new THREE.Color(0xef4444);
 let dynBall = [];
 window.renderBall3d = function (ball) {

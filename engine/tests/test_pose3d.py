@@ -18,7 +18,9 @@ from pbengine.detect.pose import (
 )
 from pbengine.players.pose3d import (
     _BONE_FRAC,
+    HIP_W_FRAC,
     PLAYER_HEIGHT_FT,
+    SHOULDER_W_FRAC,
     billboard_lift,
     ground_xy_ft,
     lift_pose_3d,
@@ -121,34 +123,45 @@ def _unit(v):
     return v / np.linalg.norm(v)
 
 
-def _build_3d_pose(gx, gy):
-    """A known 3D COCO pose standing at (gx, gy) facing +Y, with genuine depth: right arm reaching
-    forward (+Y), knees bent forward. Bones match _BONE_FRAC * PLAYER_HEIGHT_FT so the depth solve
-    (which uses those lengths) can recover it."""
+def _build_3d_pose(gx, gy, yaw=0.0):
+    """A known 3D COCO pose standing at (gx, gy), turned by ``yaw`` about the vertical (0 -> faces +Y).
+
+    Built with anthropometric trunk widths (bi-iliac hips, biacromial shoulders) and exact bone
+    lengths so the lift — which assumes those widths/lengths — can recover it. Genuine depth comes
+    from the right arm reaching along the body-forward direction. ``lat`` is the L->R body axis and
+    ``fwd`` the forward axis, both rotated by ``yaw``."""
     H = PLAYER_HEIGHT_FT
     bone = {k: f * H for k, f in _BONE_FRAC.items()}
+    hip_half = HIP_W_FRAC * H / 2.0
+    sh_half = SHOULDER_W_FRAC * H / 2.0
+    up = np.array([0.0, 0.0, 1.0])
+    lat = np.array([np.cos(yaw), np.sin(yaw), 0.0])   # L->R body axis
+    fwd = np.array([-np.sin(yaw), np.cos(yaw), 0.0])  # body forward (yaw=0 -> +Y)
+    splay = (sh_half - hip_half) / bone["torso"]      # outward lean to widen hips -> shoulders
     p = [None] * N_KEYPOINTS
 
     def place(parent, direction, length):
         return np.asarray(parent, dtype=float) + length * _unit(direction)
 
-    p[L_ANKLE] = np.array([gx - 0.4, gy, 0.0])
-    p[R_ANKLE] = np.array([gx + 0.4, gy, 0.0])
-    # legs: knees forward (+Y), hips slightly back, lengths exact.
-    p[L_KNEE] = place(p[L_ANKLE], (0, 0.5, 1.0), bone["shank"])
-    p[R_KNEE] = place(p[R_ANKLE], (0, 0.5, 1.0), bone["shank"])
-    p[L_HIP] = place(p[L_KNEE], (0, -0.3, 1.0), bone["thigh"])
-    p[R_HIP] = place(p[R_KNEE], (0, -0.3, 1.0), bone["thigh"])
-    # torso: shoulders up and a touch wider.
-    p[L_SHOULDER] = place(p[L_HIP], (-0.15, 0, 1.0), bone["torso"])
-    p[R_SHOULDER] = place(p[R_HIP], (0.15, 0, 1.0), bone["torso"])
-    # left arm hangs down; right arm reaches forward (+Y) and down.
-    p[L_ELBOW] = place(p[L_SHOULDER], (0, 0, -1.0), bone["uarm"])
-    p[R_ELBOW] = place(p[R_SHOULDER], (0, 1.0, -0.5), bone["uarm"])
-    p[L_WRIST] = place(p[L_ELBOW], (0, 0, -1.0), bone["farm"])
-    p[R_WRIST] = place(p[R_ELBOW], (0, 1.0, -0.3), bone["farm"])
+    # Legs bottom-up: ankles on the ground at bi-iliac stance, knees bent FORWARD, hips a touch back —
+    # genuine, resolvable leg depth. The lateral (lat) stance is preserved up the leg (the bends are
+    # along fwd), so hip width stays anthropometric.
+    mid_ground = np.array([gx, gy, 0.0])
+    p[L_ANKLE], p[R_ANKLE] = mid_ground - hip_half * lat, mid_ground + hip_half * lat
+    p[L_KNEE] = place(p[L_ANKLE], 0.5 * fwd + up, bone["shank"])
+    p[R_KNEE] = place(p[R_ANKLE], 0.5 * fwd + up, bone["shank"])
+    p[L_HIP] = place(p[L_KNEE], -0.3 * fwd + up, bone["thigh"])
+    p[R_HIP] = place(p[R_KNEE], -0.3 * fwd + up, bone["thigh"])
+    # Shoulders a torso above, splayed outward along lat to biacromial width (exact bone length).
+    p[L_SHOULDER] = place(p[L_HIP], -splay * lat + up, bone["torso"])
+    p[R_SHOULDER] = place(p[R_HIP], splay * lat + up, bone["torso"])
     mid_sh = (p[L_SHOULDER] + p[R_SHOULDER]) / 2.0
-    p[NOSE] = place(mid_sh, (0, 0.1, 1.0), bone["head"])
+    # Left arm hangs down; right arm reaches FORWARD (+fwd) and slightly down.
+    p[L_ELBOW] = place(p[L_SHOULDER], -up, bone["uarm"])
+    p[R_ELBOW] = place(p[R_SHOULDER], fwd - 0.5 * up, bone["uarm"])
+    p[L_WRIST] = place(p[L_ELBOW], -up, bone["farm"])
+    p[R_WRIST] = place(p[R_ELBOW], fwd - 0.3 * up, bone["farm"])
+    p[NOSE] = place(mid_sh, up + 0.1 * fwd, bone["head"])
     for k in (1, 2, 3, 4):  # eyes/ears near the nose
         p[k] = p[NOSE] + np.array([0.1 * (k - 2.5), 0.0, 0.1])
     return p
@@ -165,10 +178,14 @@ def test_lift_pose_3d_recovers_depth_and_reprojects_exactly():
     lifted = lift_pose_3d(px, conf, court_xy, cam, forward_dir=(0.0, 1.0, 0.0))
     assert lifted is not None
 
-    # Core property: every joint lies on its own ray -> reprojects exactly to the input pixel.
+    # Core property: limb joints lie exactly on their own ray -> reproject exactly to the input
+    # pixel. The four trunk joints get a yaw refinement (orientation, not absolute depth) and so
+    # reproject near-exactly (~1px) rather than bit-exact — the deliberate trade for stable depth.
+    trunk = {L_SHOULDER, R_SHOULDER, L_HIP, R_HIP}
     reproj = cam.project(np.array(lifted))
-    for (ru, rv), (u, v) in zip(reproj, px):
-        assert abs(ru - u) < 1.0 and abs(rv - v) < 1.0
+    for k, ((ru, rv), (u, v)) in enumerate(zip(reproj, px)):
+        tol = 2.0 if k in trunk else 1.0
+        assert abs(ru - u) < tol and abs(rv - v) < tol
 
     # Feet on the ground; recovered pose close to truth (depth resolved, not flat).
     assert lifted[L_ANKLE][2] < 0.1 and lifted[R_ANKLE][2] < 0.1
@@ -199,6 +216,32 @@ def test_lift_pose_3d_facing_resolves_front_back_ambiguity():
     reach_fwd = (np.array(fwd[R_WRIST]) - np.array(fwd[R_SHOULDER]))[1]
     reach_bwd = (np.array(bwd[R_WRIST]) - np.array(bwd[R_SHOULDER]))[1]
     assert reach_fwd > 0.3 and reach_bwd < 0.0  # depth sign flips with facing
+
+
+def test_lift_pose_3d_recovers_body_yaw_depth():
+    """A player turned 40° about the vertical: the trunk must come out with real front/back depth
+    (L/R shoulders and hips at different Y), not a flat coplanar cutout."""
+    cam = _camera()
+    gx, gy, yaw = 9.0, 16.0, np.radians(40.0)
+    truth = _build_3d_pose(gx, gy, yaw=yaw)
+    px = [tuple(cam.project(np.array([t]))[0]) for t in truth]
+    conf = [0.9] * N_KEYPOINTS
+    court_xy = (gx / 20.0, gy / 44.0)
+
+    lifted = lift_pose_3d(px, conf, court_xy, cam, forward_dir=(0.0, 1.0, 0.0))
+    assert lifted is not None
+
+    # The shoulders (and hips) span real depth — turned body, not flat. Truth Y gap at 40° is
+    # 2 * sh_half * sin(yaw); require the lift to recover a solid fraction of it.
+    sh_half = SHOULDER_W_FRAC * PLAYER_HEIGHT_FT / 2.0
+    want_gap = 2.0 * sh_half * np.sin(yaw)
+    got_sh_gap = abs(lifted[R_SHOULDER][1] - lifted[L_SHOULDER][1])
+    got_hip_gap = abs(lifted[R_HIP][1] - lifted[L_HIP][1])
+    assert got_sh_gap > 0.5 * want_gap
+    assert got_hip_gap > 0.3 * (2.0 * HIP_W_FRAC * PLAYER_HEIGHT_FT / 2.0 * np.sin(yaw))
+    # Recovered trunk is close to the (turned) truth.
+    for k in (L_SHOULDER, R_SHOULDER, L_HIP, R_HIP):
+        assert np.linalg.norm(np.array(lifted[k]) - truth[k]) < 0.6
 
 
 def test_lift_pose_3d_none_on_singular_camera():
