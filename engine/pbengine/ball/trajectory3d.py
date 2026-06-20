@@ -471,112 +471,80 @@ def fill_gaps_2d_samples(samples: list[BallSample], max_fill_gap: int = 4) -> li
     return out
 
 
-def _camera_center(camera: CameraModel) -> tuple[np.ndarray, np.ndarray] | None:
-    """``(O, Minv)``: camera centre (world ft) and ``M⁻¹`` for pixel-ray back-projection.
+_ARC_APEX_CAP_FT = 18.0   # cap a single arc's peak height so a missing bounce can't shoot it skyward
+_COURT_CLAMP_FT = 4.0     # keep horizontal anchors within the court footprint + this slack
 
-    Same ``P`` the forward projection uses (``M = P[:, :3]``), so ``O + s·(Minv @ [u,v,1])``
-    reprojects exactly to ``(u, v)``. Returns ``None`` if ``M`` is singular.
-    """
-    M = camera.P[:, :3]
-    try:
-        Minv = np.linalg.inv(M)
-    except np.linalg.LinAlgError:
+
+def _ground_ft(court_xy: tuple[float, float] | None) -> tuple[float, float] | None:
+    """Normalized court point -> (X, Y) feet, clamped to the court footprint + slack."""
+    if court_xy is None:
         return None
-    O = -Minv @ camera.P[:, 3]
-    return O, Minv
+    x = min(max(court_xy[0] * WIDTH_FT, -_COURT_CLAMP_FT), WIDTH_FT + _COURT_CLAMP_FT)
+    y = min(max(court_xy[1] * LENGTH_FT, -_COURT_CLAMP_FT), LENGTH_FT + _COURT_CLAMP_FT)
+    return x, y
 
 
-def _closest_on_ray_to_segment(
-    O: np.ndarray, d: np.ndarray, A: np.ndarray, B: np.ndarray
-) -> np.ndarray | None:
-    """World point on the ray ``O + s·d`` (s > 0) closest to the chord segment ``A→B``.
+def physics_arc_world_ft(
+    traj: list[BallSample], bounces: list[Bounce], start_frame: int, end_frame: int, fps: float
+) -> list[BallSample]:
+    """Set a plausible, on-court ``world_ft`` at **every** sample from a gravity-arc model.
 
-    The point stays exactly on the pixel ray (silhouette preserved) while riding the physically
-    expected straight line between the two bracketing 3D knots — continuous, no teleport.
-    """
-    u = B - A
-    w0 = O - A
-    f = float(d @ d)
-    g = float(d @ u)
-    h = float(u @ u)
-    p = float(d @ w0)
-    q = float(u @ w0)
-    if f < 1e-12:
-        return None
-    det = g * g - f * h
-    if abs(det) < 1e-12:  # ray parallel to the chord -> project the chord midpoint onto the ray
-        s = float((0.5 * (A + B) - O) @ d) / f
-    else:
-        r = (p * g - f * q) / det
-        if r < 0.0 or r > 1.0:  # closest chord point is an endpoint -> project it onto the ray
-            endp = A if r < 0.0 else B
-            s = float((endp - O) @ d) / f
-        else:
-            s = (p * h - g * q) / det
-    return O + s * d  # uniquely determined; the ray's sign convention (Minv scale) is arbitrary
-
-
-def _hold_depth_on_ray(
-    camera: CameraModel, O: np.ndarray, d: np.ndarray, known_world: tuple[float, float, float]
-) -> np.ndarray | None:
-    """Point on ``O + s·d`` at the same camera depth as ``known_world`` (edge-run constant-depth hold)."""
-    fwd = camera.R[2]  # world->camera third row = camera forward axis in world
-    denom = float(fwd @ d)
-    if abs(denom) < 1e-9:
-        return None
-    depth_known = float(fwd @ np.asarray(known_world, dtype=float)) + float(camera.t[2])
-    s = (depth_known - float(fwd @ O) - float(camera.t[2])) / denom
-    return O + s * d
-
-
-def bridge_world_ft(traj: list[BallSample], camera: CameraModel, fps: float) -> list[BallSample]:
-    """Guarantee a physically-plausible ``world_ft`` at **every** sample so the 3D ball never blinks.
-
-    Frames left without 3D by the per-segment fit still carry ``px`` (densify guarantees it). Each
-    such pixel is placed on its own back-projected camera ray — so it reprojects exactly to the
-    detection — at the depth that rides the chord between the two bracketing 3D knots (or, at a
-    rally edge with 3D on only one side, at that knot's camera depth). Filled samples are flagged
-    ``interpolated``; ``speed_mph`` is finite-differenced from the now-continuous track. A run with
-    no 3D on either side (no reconstruction anywhere in the rally) is left as-is.
+    Single-camera height/depth can't be measured reliably, so instead of the fragile metric solve we
+    anchor the ball to the signals that *are* reliable: ground contacts (bounces, exact via the
+    homography) plus the rally endpoints, all at ``Z = 0``. Horizontally the ball moves linearly
+    between consecutive anchors (bounces alternate sides, so it crosses the net back and forth);
+    vertically each inter-anchor flight is a gravity parabola ``Z(t) = ½·g·t·(T−t)`` (launch/land at
+    ``Z = 0``), its apex ``g·T²/8`` capped at :data:`_ARC_APEX_CAP_FT`. Needs **no camera** — only the
+    homography-derived court positions — so the 3D ball appears for any calibrated rally and is
+    on-court by construction. ``speed_mph`` is finite-differenced from the resulting 3D path; the
+    ``interpolated`` flag (meaning "the 2D ball was detected here") is left untouched.
     """
     if not traj:
         return traj
-    bp = _camera_center(camera)
-    if bp is None:
-        return list(traj)
-    O, Minv = bp
     out = [s.model_copy() for s in sorted(traj, key=lambda s: s.frame)]
-    n = len(out)
 
-    i = 0
-    while i < n:
-        if out[i].world_ft is not None:
-            i += 1
+    # Ground anchors (frame -> (X, Y) ft), one per frame: rally endpoints + each in-span bounce.
+    anchors: dict[int, tuple[float, float]] = {}
+    for edge in (out[0], out[-1]):
+        g = _ground_ft(edge.court_xy)
+        if g is not None:
+            anchors.setdefault(edge.frame, g)
+    for b in bounces:
+        if start_frame <= b.frame <= end_frame:
+            anchors[b.frame] = _ground_ft(b.court_xy)  # type: ignore[assignment]  # bounce xy is set
+    af = sorted(anchors)
+    if len(af) < 2:  # not enough to interpolate a path — leave the track as-is
+        return out
+
+    def bracket(frame: int) -> tuple[int, int]:
+        f0 = af[0] if frame <= af[0] else af[-1] if frame >= af[-1] else 0
+        if f0:
+            return f0, f0
+        lo = max(a for a in af if a <= frame)
+        hi = min(a for a in af if a > frame)
+        return lo, hi
+
+    for s in out:
+        a, c = bracket(s.frame)
+        ax, ay = anchors[a]
+        if a == c:  # outside the anchor span — rest on the nearest ground anchor
+            s.world_ft = (ax, ay, 0.0)
             continue
-        j = i
-        while j < n and out[j].world_ft is None:
-            j += 1
-        left = np.asarray(out[i - 1].world_ft, dtype=float) if i > 0 else None
-        right = np.asarray(out[j].world_ft, dtype=float) if j < n else None
-        for k in range(i, j):
-            u, v = out[k].px
-            d = Minv @ np.array([float(u), float(v), 1.0])
-            if left is not None and right is not None:
-                w = _closest_on_ray_to_segment(O, d, left, right)
-            elif left is not None:
-                w = _hold_depth_on_ray(camera, O, d, out[i - 1].world_ft)
-            elif right is not None:
-                w = _hold_depth_on_ray(camera, O, d, out[j].world_ft)
-            else:
-                w = None  # no 3D anywhere in this rally -> leave 2D-only
-            if w is not None:
-                out[k].world_ft = (float(w[0]), float(w[1]), float(max(w[2], 0.0)))
-                out[k].interpolated = True
-        i = j
+        cx, cy = anchors[c]
+        span = c - a
+        frac = (s.frame - a) / span
+        T = span / fps
+        t = frac * T
+        z = 0.5 * G_FT * t * (T - t)  # gravity arc, 0 at both anchors
+        apex_raw = G_FT * T * T / 8.0
+        if apex_raw > _ARC_APEX_CAP_FT:
+            z *= _ARC_APEX_CAP_FT / apex_raw  # uniform scale keeps the parabola shape, caps the peak
+        s.world_ft = (ax + (cx - ax) * frac, ay + (cy - ay) * frac, max(z, 0.0))
 
-    # Finite-difference speed for any sample that gained world_ft but has no speed yet.
+    # Finite-difference speed from the now-continuous 3D path (central where possible).
+    n = len(out)
     for k in range(n):
-        if out[k].world_ft is None or out[k].speed_mph is not None:
+        if out[k].world_ft is None:
             continue
         a = out[k - 1] if k > 0 and out[k - 1].world_ft is not None else out[k]
         b = out[k + 1] if k + 1 < n and out[k + 1].world_ft is not None else out[k]

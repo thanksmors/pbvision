@@ -260,6 +260,12 @@ def _track_players(
         # blinking; the cap matches the stitch window so a genuine long absence is still left a hole.
         positions = interpolate_positions(positions, fps, max_gap_frames=max_stitch_frames(fps))
         players.append(Player(track_id=min(group), team=team, positions=positions))
+    # Drop background people (refs, spectators, adjacent court) and cap to the doubles roster, so the
+    # overlay shows the 4 players — not every person ByteTrack saw. Needs a homography for court sides.
+    if homography is not None:
+        from pbengine.players.select import select_on_court_players
+
+        players = select_on_court_players(players)
     return players
 
 
@@ -311,12 +317,12 @@ def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point
         # Backstop: the physics/2D fills only bridge short within-arc gaps. Linearly fill every frame
         # still missing in the rally span so the stored track is complete for downstream analysis.
         traj = densify_rally(traj, span.start_frame, span.end_frame, bounces, camera, fps)
-        # Guarantee a 3D position at every frame (place the leftover 2D-only detections on their
-        # camera rays, riding the chord between bracketing 3D knots) so the ball never blinks in 3D.
-        if camera is not None:
-            from pbengine.ball.trajectory3d import bridge_world_ft
+        # Set a plausible, on-court 3D position at every frame: a gravity arc anchored to the reliable
+        # ground contacts (bounces + rally edges). Replaces the fragile metric height, which rode an
+        # unreliable single-image focal and flung the ball off-court. Needs only the homography.
+        from pbengine.ball.trajectory3d import physics_arc_world_ft
 
-            traj = bridge_world_ft(traj, camera, fps)
+        traj = physics_arc_world_ft(traj, bounces, span.start_frame, span.end_frame, fps)
         points.append(
             Point(
                 point_index=i,
