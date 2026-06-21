@@ -77,17 +77,22 @@ def _percentile(sorted_vals, q: float) -> float:
     return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (pos - lo)
 
 
-def coverage_report(samples, n_frames: int, fps: float, gate_px: float | None = None) -> None:
+def coverage_report(samples, n_frames: int, fps: float, gate_px: float | None = None,
+                    court_outliers: int | None = None) -> None:
     """Log ball coverage, inter-detection pixel speed, and gap structure for one analysis run.
 
     ``samples`` are the post-gate :class:`~pbengine.schema.models.BallSample` (``.frame``, ``.px``).
     A *low coverage with large arc-breaking gaps* is the fast-ball-missed-by-CNN signature; *high
-    coverage but many rally-splits* points downstream instead.
+    coverage but many rally-splits* points downstream instead. ``court_outliers`` (when a homography
+    was solved) is how many detections had their ground projection discarded as implausibly off-court.
     """
     det = len(samples)
     cov = (det / n_frames) if n_frames else 0.0
     print(f"ball: detected on {det}/{n_frames} frames (coverage {cov * 100:.0f}%)"
           + (f" · jump-gate {gate_px:.0f} px/frame" if gate_px is not None else ""), flush=True)
+    if court_outliers is not None:
+        print(f"  court-outliers dropped (px kept, position discarded): {court_outliers}/{det}",
+              flush=True)
 
     ss = sorted(samples, key=lambda s: s.frame)
     speeds = []

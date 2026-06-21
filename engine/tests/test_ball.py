@@ -5,8 +5,9 @@ submodule + weights, none of which are present in CI).
 """
 
 import numpy as np
+import pytest
 
-from pbengine.ball.tracker import BallTracker
+from pbengine.ball.tracker import BallTracker, _court_xy_or_none
 from pbengine.ball.wasb import _DotDict, _wrap
 
 
@@ -33,6 +34,31 @@ def test_postprocess_gates_and_projects():
 
 def test_postprocess_empty():
     assert BallTracker().postprocess([], None) == []
+
+
+def test_court_xy_or_none_rejects_far_off_court_projections():
+    # On court and just-out (a few ft past the lines) are kept; a far projection (8.0*20=160 ft) is
+    # discarded — that's the airborne/vanishing-line explosion that produced court_xy ~7766.
+    assert _court_xy_or_none(0.5, 0.5) == (0.5, 0.5)
+    assert _court_xy_or_none(1.1, -0.05) == (1.1, -0.05)   # ~2 ft out / ~2 ft behind -> kept
+    assert _court_xy_or_none(8.0, 0.5) is None             # 160 ft off court -> dropped
+    assert _court_xy_or_none(0.5, -1.08) is None           # ~48 ft behind baseline -> dropped
+
+
+def test_postprocess_nulls_off_court_ball_projection():
+    # Homography maps pixel -> normalized court (px/1000). Use stable position clusters so the Kalman
+    # smoother is a no-op and the projection is deterministic. An on-court cluster (x=500 -> 0.5) keeps
+    # court_xy; an off-court cluster (x=9000 -> 9.0 -> 180 ft) has court_xy discarded, pixel preserved.
+    H = np.array([[1 / 1000, 0, 0], [0, 1 / 1000, 0], [0, 0, 1]], dtype=float)
+    bt = BallTracker(max_px_per_frame=1e9)  # disable the jump gate for this projection test
+
+    on_court = bt.postprocess([(0, 500.0, 400.0, 0.9), (1, 500.0, 400.0, 0.9)], homography=H)
+    assert all(s.court_xy is not None for s in on_court)
+    assert on_court[0].court_xy[0] == pytest.approx(0.5, abs=0.05)
+
+    off_court = bt.postprocess([(0, 9000.0, 400.0, 0.9), (1, 9000.0, 400.0, 0.9)], homography=H)
+    assert all(s.court_xy is None for s in off_court)       # off-court projection -> discarded
+    assert all(s.px[0] > 1000 for s in off_court)            # pixels still present (coverage preserved)
 
 
 def test_fast_ball_survives_resolution_aware_gate():

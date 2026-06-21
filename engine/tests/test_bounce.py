@@ -25,3 +25,16 @@ def test_detects_single_bounce():
 def test_no_bounce_on_monotonic():
     traj = [_sample(i, 100 + i * 10, 0.3 + i * 0.05) for i in range(6)]
     assert detect_bounces(traj, window=2) == []
+
+
+def test_skips_bounce_at_nulled_court_xy():
+    # The pixel-y local max sits on a sample whose court_xy was discarded as an off-court outlier
+    # (airborne/vanishing-line projection). Without a court position it must not become a bounce.
+    traj = [
+        _sample(1, 200, 0.3),
+        _sample(2, 350, 0.4),
+        BallSample(frame=3, px=(500.0, 500.0), court_xy=None, conf=0.9),  # peak, but no court_xy
+        _sample(4, 360, 0.6),
+        _sample(5, 210, 0.7),
+    ]
+    assert detect_bounces(traj, window=2) == []

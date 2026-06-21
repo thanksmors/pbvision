@@ -18,8 +18,25 @@ from pathlib import Path
 import numpy as np
 
 from pbengine.ball.kalman import gate_jumps, smooth
+from pbengine.court.court_model import LENGTH_FT, WIDTH_FT
 from pbengine.court.homography import project
 from pbengine.schema.models import BallSample
+
+# A ball pixel high in the air (or near the image vanishing line) projected through the *ground*-plane
+# homography lands far from the court — the projective division explodes to hundreds of feet. Such a
+# position is meaningless and, left in, feeds false bounces/serve/winner calls. Beyond the court
+# footprint + this slack (in feet) we keep the pixel but discard the bogus court position (set None);
+# downstream already skips None court_xy. 8 ft keeps genuinely just-out bounces while killing the
+# airborne/vanishing-line explosions.
+_COURT_OUTLIER_SLACK_FT = 8.0
+
+
+def _court_xy_or_none(cx: float, cy: float) -> tuple[float, float] | None:
+    """Normalized court point, or None if its ground projection lands implausibly far off the court."""
+    s = _COURT_OUTLIER_SLACK_FT
+    if -s <= cx * WIDTH_FT <= WIDTH_FT + s and -s <= cy * LENGTH_FT <= LENGTH_FT + s:
+        return (cx, cy)
+    return None
 
 # Badminton weights + score_threshold=0.2 + step=1 won an empirical sweep on real pickleball
 # footage (scripts/debug_ball.py --sweep): ~61% raw coverage, edging tennis, and the overlay
@@ -143,7 +160,8 @@ class BallTracker:
                 BallSample(
                     frame=int(f),
                     px=(float(smoothed[i, 0]), float(smoothed[i, 1])),
-                    court_xy=(float(court[i, 0]), float(court[i, 1])) if court is not None else None,
+                    court_xy=(_court_xy_or_none(float(court[i, 0]), float(court[i, 1]))
+                          if court is not None else None),
                     conf=float(conf[i]),
                 )
             )
