@@ -26,18 +26,27 @@ FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
 
 @app.post("/api/matches")
-async def upload_match(file: UploadFile, preset: str | None = Form(None)) -> dict[str, str]:
-    """Accept a video upload, start analysis, return the job id.
+async def upload_match(
+    file: UploadFile,
+    preset: str | None = Form(None),
+    calibmode: str | None = Form(None),
+) -> dict[str, object]:
+    """Accept a video upload; start analysis (auto court) or defer for manual calibration.
 
     ``preset`` selects the player-detection sensitivity (fast / balanced / max / gpu); ``None`` lets
-    :func:`jobs.start_job` fall back to ``PBV_PLAYERS_PRESET`` / the balanced default.
+    :func:`jobs.start_job` fall back to ``PBV_PLAYERS_PRESET`` / the balanced default. ``calibmode``
+    is ``"manual"`` (default) to defer analysis until the client posts court corners, or ``"auto"`` to
+    start immediately with automatic corner detection.
     """
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="empty upload")
     job_id = jobs.create_job(file.filename or "match.mp4", data)
+    if (calibmode or "manual") == "manual":
+        jobs.set_preset(job_id, preset)  # remember it for the post-calibration run
+        return {"job_id": job_id, "needs_calibration": True}
     jobs.start_job(job_id, preset=preset)
-    return {"job_id": job_id}
+    return {"job_id": job_id, "needs_calibration": False}
 
 
 @app.post("/api/demo")

@@ -54,6 +54,13 @@
         <option value="gpu">GPU (aggressive)</option>
       </select>
     </label>
+    <label title="Manual = click the court corners yourself first (most reliable). Auto = let the detector find them (often unreliable).">
+      Court:
+      <select id="calibmode">
+        <option value="manual" selected>Manual — click corners (recommended)</option>
+        <option value="auto">Auto-detect corners</option>
+      </select>
+    </label>
     <button id="upload" class="primary">Analyze</button>
     <button id="demo">Run demo</button>
     <div id="progress" style="display:none; margin-top:1rem;">
@@ -114,6 +121,20 @@
         <span style="color:#3b82f6">slow</span>→<span style="color:#ef4444">fast</span> ·
         <span style="color:#9aa4af">interpolated</span> · <span style="color:#d4a72c">bounce</span></div>
       <div id="view3d" style="width:100%; height:440px; border:1px solid #ddd; border-radius:6px; overflow:hidden; background:#0d1117;"></div>
+      <div class="muted" id="height-note" style="margin-top:.3rem; font-size:.8rem;">
+        Peak height <span id="height-value">—</span> · height is <em>modeled</em> (a single camera
+        can't measure ball height): anchored to bounces, the 36″ net, and player contacts.</div>
+    </div>
+
+    <div id="rally-recap" class="card" style="display:none;">
+      <h2 style="font-size:1.05rem; margin-bottom:.4rem;">Rally recap</h2>
+      <div id="recap-content" class="muted"></div>
+    </div>
+
+    <div id="match-stats" class="card" style="display:none;">
+      <h2 style="font-size:1.05rem; margin-bottom:.4rem;">Match analytics</h2>
+      <div id="stats-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.8rem;"></div>
+      <div class="muted" id="stats-note" style="margin-top:.5rem; font-size:.78rem;"></div>
     </div>
 
     <h2 style="font-size:1.05rem; margin-bottom:.2rem;">Points</h2>
@@ -140,9 +161,19 @@ $("upload").onclick = async () => {
   const fd = new FormData();
   fd.append("file", f);
   fd.append("preset", $("preset").value);
+  fd.append("calibmode", $("calibmode").value);
   const r = await fetch("/api/matches", { method: "POST", body: fd });
-  startPolling((await r.json()).job_id);
+  const j = await r.json();
+  if (j.needs_calibration) openCalibration(j.job_id, true);  // click corners before analysis starts
+  else startPolling(j.job_id);
 };
+
+// Show only the calibration UI (no results yet) before the first, manual-calibrated run.
+function setPreAnalysis(on) {
+  const sel = ["#status", ".stage-wrap", "#gapbar", "#layers", "#points", "#panel3d",
+               "#rally-recap", "#match-stats", "#calibrate"];
+  for (const s of sel) { const el = document.querySelector(s); if (el) el.style.display = on ? "none" : ""; }
+}
 
 $("demo").onclick = async () => {
   const r = await fetch("/api/demo", { method: "POST" });
@@ -182,8 +213,11 @@ async function showResult(jobId) {
   JOB = jobId;
   MATCH = await (await fetch(`/api/matches/${jobId}`)).json();
   $("results").style.display = "block";
+  setPreAnalysis(false);                  // restore result panels (may have been hidden for calibration)
+  $("calibration").style.display = "none";
   $("panel3d").style.display = "none";   // shown when a point with 3D data is selected
   renderStatus();
+  renderMatchStats();
   const v = $("video");
   v.src = `/api/matches/${jobId}/video`;
   // Keep the overlay drawn whether the video is playing, paused, or seeked.
@@ -282,6 +316,8 @@ function renderPoints() {
     const review = p.needs_review ? '<span class="badge review">review</span>' : "";
     const st = point3d(p);
     const d3 = st ? `<span class="muted">· ⚡${Math.round(st.topSpeed)} mph · ↑${st.peakHeight.toFixed(1)} ft</span>` : "";
+    const nShots = (p.shots || []).length;
+    const shotInfo = nShots ? `<span class="muted">· ${nShots} shot${nShots > 1 ? "s" : ""}</span>` : "";
     const gaps = ballGaps(p);
     const maxGap = gaps.reduce((m, g) => Math.max(m, g.len), 0);
     const gapBadge = gaps.length
@@ -289,7 +325,7 @@ function renderPoints() {
       : "";
     div.innerHTML = `
       <span>#${p.point_index + 1} · frames ${p.start_frame}–${p.end_frame}
-        <span class="muted">· serve ${p.serve ? p.serve.server_team + "/" + p.serve.server_side : "—"}</span> ${d3}</span>
+        <span class="muted">· serve ${p.serve ? p.serve.server_team + "/" + p.serve.server_side : "—"}</span> ${shotInfo} ${d3}</span>
       <span><span class="win">${winner}</span> <span class="muted">(${p.win_reason})</span>
         <span class="badge">${Math.round(p.confidence * 100)}%</span> ${gapBadge} ${review}</span>`;
     div.onclick = () => selectPoint(i);
@@ -314,9 +350,18 @@ const LABELS = {
   net_left: "Net · left sideline", net_right: "Net · right sideline",
 };
 
-$("calibrate").onclick = async () => {
+$("calibrate").onclick = () => openCalibration(JOB, false);
+
+// Open the click-to-place court calibrator. ``firstRun`` = before any analysis (manual default):
+// hide the result panels and show only the calibrator; Save then kicks off the analysis.
+async function openCalibration(jobId, firstRun) {
+  JOB = jobId;
   if (!LANDMARKS) LANDMARKS = await (await fetch("/api/court-landmarks")).json();
+  $("results").style.display = "block";
+  setPreAnalysis(!!firstRun);
   $("calibration").style.display = "block";
+  $("calMsg").textContent = firstRun
+    ? "Click at least 4 court points to calibrate, then Save to start analysis." : "";
   placed = {}; placedOrder = []; armed = null;
   $("calSave").disabled = true;
   $("calDownload").disabled = true;
@@ -483,6 +528,65 @@ function update3dPanel(i) {
   const has = !!p && (p.ball_trajectory || []).some((s) => s.world_ft);
   $("panel3d").style.display = has ? "block" : "none";
   if (has && window.render3d) window.render3d(p.ball_trajectory, p.bounces);
+  if (has) {
+    const st = point3d(p);
+    $("height-value").textContent = st ? `${st.peakHeight.toFixed(1)} ft (over the 36″ net = 3.0 ft)` : "—";
+  }
+  renderRecap(p);
+}
+
+const SHOT_LABEL = { serve: "Serve", return: "Return", drive: "Drive", dink: "Dink",
+  drop: "Drop", volley: "Volley", lob: "Lob", groundstroke: "Groundstroke" };
+
+// Per-point rally recap: the ordered shot list with hitter, type, speed, and the terminal outcome.
+function renderRecap(p) {
+  const shots = (p && p.shots) || [];
+  const box = $("rally-recap");
+  if (!shots.length) { box.style.display = "none"; return; }
+  box.style.display = "block";
+  const steps = shots.map((s) => {
+    const who = s.team ? `Team ${s.team}` : "?";
+    const spd = s.speed_mph != null ? ` · ${Math.round(s.speed_mph)} mph` : "";
+    const land = s.landing_zone ? ` → ${s.landing_zone}` : "";
+    const tag = s.outcome === "winner" ? ' <span class="win">winner</span>'
+      : s.outcome === "error" ? ' <span class="badge review">error</span>' : "";
+    return `<b>${s.shot_index + 1}.</b> ${SHOT_LABEL[s.shot_type] || s.shot_type} · ${who}${spd}${land}${tag}`;
+  });
+  $("recap-content").innerHTML = steps.join('<span class="muted"> &nbsp;➜&nbsp; </span>');
+}
+
+// Match-level analytics derived from the per-shot + 3D data (raw shots are in the JSON too).
+function renderMatchStats() {
+  const pts = MATCH.points || [];
+  const shots = pts.flatMap((p) => p.shots || []);
+  if (!pts.length) { $("match-stats").style.display = "none"; return; }
+  const drives = shots.filter((s) => s.shot_type === "drive" && s.speed_mph != null);
+  const avgDrive = drives.length ? drives.reduce((a, s) => a + s.speed_mph, 0) / drives.length : null;
+  const maxDrive = drives.length ? Math.max(...drives.map((s) => s.speed_mph)) : null;
+  const peaks = pts.map(point3d).filter(Boolean).map((s) => s.peakHeight);
+  const avgPeak = peaks.length ? peaks.reduce((a, b) => a + b, 0) / peaks.length : null;
+  const errors = shots.filter((s) => s.outcome === "error").length;
+  const winners = shots.filter((s) => s.outcome === "winner").length;
+  const avgRally = shots.length / pts.length;
+  // Shot-type distribution.
+  const counts = {};
+  for (const s of shots) counts[s.shot_type] = (counts[s.shot_type] || 0) + 1;
+  const mix = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    .map(([t, n]) => `${SHOT_LABEL[t] || t} ${n}`).join(" · ") || "—";
+
+  const cell = (label, val) => `<div><span class="muted">${label}</span><br><strong>${val}</strong></div>`;
+  $("stats-grid").innerHTML = [
+    cell("Avg peak height", avgPeak != null ? `${avgPeak.toFixed(1)} ft` : "—"),
+    cell("Avg drive speed", avgDrive != null ? `${Math.round(avgDrive)} mph` : "—"),
+    cell("Max drive speed", maxDrive != null ? `${Math.round(maxDrive)} mph` : "—"),
+    cell("Avg rally length", `${avgRally.toFixed(1)} shots`),
+    cell("Winners", `${winners}`),
+    cell("Errors", `${errors}`),
+    cell("Shot mix", mix),
+  ].join("");
+  $("stats-note").textContent = "Lower-but-over-the-net is the goal for most shots (net = 3.0 ft). "
+    + "Shot types are best-effort heuristics from the ball track + paddle estimates.";
+  $("match-stats").style.display = "block";
 }
 
 // Map a source-pixel coord onto the displayed (scaled) canvas.

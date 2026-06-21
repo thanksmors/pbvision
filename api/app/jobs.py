@@ -120,6 +120,12 @@ def _read_preset(d: Path) -> str | None:
     return f.read_text().strip() if f.exists() else None
 
 
+def set_preset(job_id: str, preset: str | None) -> None:
+    """Persist the player-detection preset before deferred (manual-calibration) analysis."""
+    if preset:
+        (job_dir(job_id) / "preset.txt").write_text(preset)
+
+
 def video_path(job_id: str) -> Path | None:
     """Path to the job's source video, if present (for the viewer's ``<video>`` element)."""
     return next(job_dir(job_id).glob("input.*"), None)
