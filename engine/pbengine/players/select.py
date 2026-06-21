@@ -12,18 +12,37 @@ from __future__ import annotations
 
 from statistics import median
 
-from pbengine.court.court_model import is_in_bounds
+from pbengine.court.court_model import LENGTH_FT, WIDTH_FT, is_in_bounds
 from pbengine.schema.models import Player
 
 # Generous slack (~7 ft wide / ~15 ft long) so deep/late real players stay; spectators are far beyond.
 _BOUND_MARGIN = 0.35
 # Ignore blink tracks of just a few frames (a real player is present for hundreds).
 _MIN_PRESENCE = 15
+# A 2nd track on a side counts as a *distinct partner* only if it sits clearly apart from the one
+# already kept — either side-by-side (a big lateral/x gap, the common doubles formation) or genuine
+# up/back (a large depth/y gap). A track that's merely a few feet away (mostly drifting in depth) is a
+# fragment of the same player; keeping it would draw two skeletons on one player and starve the real
+# partner of a roster slot — the "only 3 players" bug (two near-identical left tracks were both kept).
+_PARTNER_LATERAL_FT = 5.0  # side-by-side partners are at least this far apart in x
+_PARTNER_DEPTH_FT = 12.0   # up/back partners are at least this far apart in y (a single player's
+                           # fragment-to-fragment depth wander stays well under this)
 
 
 def _median_xy(player: Player) -> tuple[float, float]:
     return (median(p.court_xy[0] for p in player.positions),
             median(p.court_xy[1] for p in player.positions))
+
+
+def _median_ft(player: Player) -> tuple[float, float]:
+    mx, my = _median_xy(player)
+    return (mx * WIDTH_FT, my * LENGTH_FT)
+
+
+def _distinct_partner(a_ft: tuple[float, float], b_ft: tuple[float, float]) -> bool:
+    """True if two median positions (feet) are far enough apart to be two players, not one fragmented."""
+    return (abs(a_ft[0] - b_ft[0]) >= _PARTNER_LATERAL_FT
+            or abs(a_ft[1] - b_ft[1]) >= _PARTNER_DEPTH_FT)
 
 
 def select_on_court_players(players: list[Player], max_per_side: int = 2) -> list[Player]:
@@ -53,19 +72,31 @@ def select_on_court_players(players: list[Player], max_per_side: int = 2) -> lis
         rows.append(f"  #{p.track_id} {p.team.value if p.team else '?'} frames={n} span=[{span}] "
                     f"median=({mx:.2f},{my:.2f}) -> {reason}")
 
-    # Cap each side to the most-present tracks; anything beyond the cap is dropped as a duplicate.
+    # Per side, keep the most-present tracks — but a 2nd (or beyond) slot only goes to a track that is
+    # spatially *separated* from those already kept, so a side's two roster spots can't both be eaten
+    # by near-duplicate fragments of the same player (which left the real partner unrepresented). A
+    # close, less-present track is dropped as a duplicate; ``max_per_side`` still caps the count.
     roster: list[Player] = []
-    capped: set[int] = set()
+    capped: dict[int, str] = {}
     for team in {p.team for p in eligible}:
         side = sorted((p for p in eligible if p.team == team), key=lambda p: len(p.positions),
                       reverse=True)
-        roster.extend(side[:max_per_side])
-        capped.update(p.track_id for p in side[max_per_side:])
+        kept: list[Player] = []
+        for p in side:
+            if len(kept) >= max_per_side:
+                capped[p.track_id] = "side full"
+                continue
+            pm = _median_ft(p)
+            if all(_distinct_partner(pm, _median_ft(k)) for k in kept):
+                kept.append(p)
+            else:
+                capped[p.track_id] = "near a kept track"
+        roster.extend(kept)
     roster.sort(key=lambda p: p.track_id)
 
     for idx, p in enumerate(sorted(players, key=lambda p: p.track_id)):
-        if p.track_id in capped:  # was eligible (KEPT) but lost the per-side cap
-            rows[idx] = rows[idx].replace("-> KEPT", "-> DROPPED(capped: >2 on side)")
+        if p.track_id in capped:  # was eligible (KEPT) but lost its slot to the per-side roster rule
+            rows[idx] = rows[idx].replace("-> KEPT", f"-> DROPPED(dup: {capped[p.track_id]})")
     a = sum(1 for p in roster if p.team and p.team.value == "A")
     b = len(roster) - a
     print(f"roster: {len(players)} tracks -> kept {len(roster)} (A:{a} B:{b})", flush=True)

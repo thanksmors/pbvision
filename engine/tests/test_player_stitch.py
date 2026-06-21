@@ -12,6 +12,11 @@ def _track(start, end, x, y, step=0.0):
     return [{"frame": f, "court_xy": (x, y + step * (f - start))} for f in range(start, end + 1)]
 
 
+def _track_x(start, end, x0, y, xstep):
+    """Frames [start, end] walking from (x0, y) along x at `xstep` per frame (normalized court)."""
+    return [{"frame": f, "court_xy": (x0 + xstep * (f - start), y)} for f in range(start, end + 1)]
+
+
 def _groups(raw, votes):
     return [sorted(g) for g in stitch_tracks(raw, votes, FPS)]
 
@@ -61,4 +66,14 @@ def test_does_not_merge_overlapping_tracks():
     # Two simultaneous players (overlapping frames) are never merged.
     raw = {1: _track(0, 30, 0.4, 0.30), 2: _track(0, 30, 0.6, 0.30)}
     votes = {1: ["A"] * 31, 2: ["A"] * 31}
+    assert _groups(raw, votes) == [[1], [2]]
+
+
+def test_velocity_cannot_fabricate_cross_court_merge():
+    # The "chimera" bug: track 1 ends far-right (x~0.83) moving left fast; track 2 starts far-left
+    # (x~0.39). Velocity extrapolation alone would pull the prediction near track 2 and merge them,
+    # but the *raw* last->first distance (~8.8 ft) exceeds the match radius -> they stay two players.
+    raw = {1: _track_x(0, 20, 1.05, 0.89, -0.011),   # ends ~(0.83, 0.89), vel ~ -0.22 ft/frame in x
+           2: _track(31, 50, 0.39, 0.91)}
+    votes = {1: ["B"] * 21, 2: ["B"] * 20}
     assert _groups(raw, votes) == [[1], [2]]

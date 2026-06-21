@@ -73,6 +73,14 @@ def stitch_tracks(
             gap = s["first_frame"] - ch["last_frame"]
             if gap <= 0 or gap > max_gap or (ch["side"] is not None and ch["side"] != s["side"]):
                 continue
+            # Raw last->first distance must be sane on its own. Velocity extrapolation (below) is only
+            # a cost/tiebreaker — it must not be able to *expand* the match radius and claim a player
+            # on the far side of the court (e.g. a right-baseline track ending, a left-baseline track
+            # starting). Without this, a fast end-velocity over a long gap fuses two distinct players.
+            raw_dist = ((ch["last_xy"][0] - s["first_xy"][0]) ** 2
+                        + (ch["last_xy"][1] - s["first_xy"][1]) ** 2) ** 0.5
+            if raw_dist > MATCH_FT:
+                continue
             px = ch["last_xy"][0] + ch["vel"][0] * gap
             py = ch["last_xy"][1] + ch["vel"][1] * gap
             dist = ((px - s["first_xy"][0]) ** 2 + (py - s["first_xy"][1]) ** 2) ** 0.5
