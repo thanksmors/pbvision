@@ -18,9 +18,10 @@ from pbengine.ball.trajectory3d import (
     _COURT_CLAMP_FT,
     _Obs,
     _fit_parabola,
+    _height_at,
     _segment_bounds,
+    ball_world_ft,
     densify_rally,
-    physics_arc_world_ft,
     fill_gaps_3d,
     reconstruct_3d,
     reconstruct_3d_segments,
@@ -311,10 +312,9 @@ def test_densify_rally_anchors_bounce_at_floor():
     assert z9 < 4.0 and z11 < 4.0
 
 
-def test_physics_arc_keeps_ball_on_court_and_arcs_between_bounces():
+def test_ball_world_ft_no_camera_uses_ground_projection_and_arcs():
     fps = 30.0
     # Ball crosses the net: a bounce on side A (y=0.3) at frame 30, another on side B (y=0.7) at 60.
-    # No camera needed — only court_xy (homography) on the samples + bounces.
     bounces = [
         Bounce(frame=30, court_xy=(0.5, 0.3), side=Team.A, in_bounds=True),
         Bounce(frame=60, court_xy=(0.5, 0.7), side=Team.B, in_bounds=True),
@@ -322,7 +322,7 @@ def test_physics_arc_keeps_ball_on_court_and_arcs_between_bounces():
     traj = [BallSample(frame=f, px=(960.0, 540.0), court_xy=(0.5, 0.3 + 0.4 * (f - 10) / 70), conf=1.0)
             for f in range(10, 81)]
 
-    out = physics_arc_world_ft(traj, bounces, start_frame=10, end_frame=80, fps=fps)
+    out = ball_world_ft(traj, bounces, None, start_frame=10, end_frame=80, fps=fps)
 
     # Every frame gets a sane, on-court 3D position (the old metric solve put Y at ~86 ft, Z at ~26).
     assert all(s.world_ft is not None for s in out)
@@ -332,20 +332,46 @@ def test_physics_arc_keeps_ball_on_court_and_arcs_between_bounces():
         assert -_COURT_CLAMP_FT <= y <= LENGTH_FT + _COURT_CLAMP_FT
         assert 0.0 <= z <= _ARC_APEX_CAP_FT + 1e-6
     at = {s.frame: s.world_ft for s in out}
-    # Touches the floor at each bounce; arcs up to the gravity apex midway between them.
+    # No camera -> horizontal is the raw ground projection of each sample's court_xy.
+    assert abs(at[45][0] - 0.5 * WIDTH_FT) < 1e-6
+    # Touches the floor at each bounce/anchor; arcs to the gravity apex midway between them.
     assert at[30][2] < 1e-6 and at[60][2] < 1e-6
     T = (60 - 30) / fps
     assert abs(at[45][2] - G_FT * T * T / 8.0) < 1e-6
-    # Horizontal lands exactly on the bounce ground point, and the ball crosses the net (Y: A->B).
-    assert abs(at[30][1] - 0.3 * LENGTH_FT) < 1e-6 and abs(at[60][1] - 0.7 * LENGTH_FT) < 1e-6
-    assert at[30][1] < at[60][1]
+    # The ball crosses the net over the rally (Y: side A -> side B).
+    assert at[10][1] < at[45][1] < at[80][1]
     assert all(s.speed_mph is not None for s in out)
 
 
-def test_physics_arc_caps_apex_on_a_long_gap():
+def test_ball_world_ft_with_camera_reprojects_to_the_2d_track():
+    fps = 30.0
+    cam = recover_camera(_homography_from_camera(_lookat_camera()), W, H)
+    bounces = [Bounce(frame=10, court_xy=(0.5, 0.3), side=Team.A, in_bounds=True),
+               Bounce(frame=40, court_xy=(0.5, 0.7), side=Team.B, in_bounds=True)]
+    # Synthesize pixels from a real airborne arc; ball_world_ft must recover points that reproject to
+    # exactly these pixels (ray property) at the *modeled* height, on-court.
+    af = [0, 10, 40, 50]
+    traj = []
+    for f in range(0, 51):
+        gt = np.array([8.0, 12.0 + 0.3 * f, _height_at(f, af, fps)])  # on-court arc at the model height
+        px = cam.project(np.array([gt]))[0]
+        traj.append(BallSample(frame=f, px=(float(px[0]), float(px[1])),
+                               court_xy=(0.5, 0.3 + 0.4 * f / 50), conf=1.0))
+
+    out = ball_world_ft(traj, bounces, cam, 0, 50, fps=fps)
+    for s in out:
+        assert s.world_ft is not None
+        rp = cam.project(np.array([list(s.world_ft)]))[0]  # reprojects to its detection pixel
+        assert abs(rp[0] - s.px[0]) < 1e-3 and abs(rp[1] - s.px[1]) < 1e-3
+        assert abs(s.world_ft[2] - _height_at(s.frame, af, fps)) < 1e-6  # height comes from the model
+        assert -_COURT_CLAMP_FT <= s.world_ft[0] <= WIDTH_FT + _COURT_CLAMP_FT
+        assert -_COURT_CLAMP_FT <= s.world_ft[1] <= LENGTH_FT + _COURT_CLAMP_FT
+
+
+def test_ball_world_ft_caps_apex_on_a_long_gap():
     # A 3 s flight (anchors 3 s apart) would parabola to g*T^2/8 ~= 36 ft; the cap holds it down.
     bounces = [Bounce(frame=0, court_xy=(0.5, 0.2), side=Team.A, in_bounds=True),
                Bounce(frame=90, court_xy=(0.5, 0.8), side=Team.B, in_bounds=True)]
     traj = [BallSample(frame=f, px=(0.0, 0.0), court_xy=(0.5, 0.5), conf=0.0) for f in range(0, 91)]
-    out = physics_arc_world_ft(traj, bounces, 0, 90, fps=30.0)
+    out = ball_world_ft(traj, bounces, None, 0, 90, fps=30.0)
     assert max(s.world_ft[2] for s in out) <= _ARC_APEX_CAP_FT + 1e-6

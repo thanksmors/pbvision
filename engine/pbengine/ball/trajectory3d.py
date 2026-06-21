@@ -479,67 +479,94 @@ def _ground_ft(court_xy: tuple[float, float] | None) -> tuple[float, float] | No
     """Normalized court point -> (X, Y) feet, clamped to the court footprint + slack."""
     if court_xy is None:
         return None
-    x = min(max(court_xy[0] * WIDTH_FT, -_COURT_CLAMP_FT), WIDTH_FT + _COURT_CLAMP_FT)
-    y = min(max(court_xy[1] * LENGTH_FT, -_COURT_CLAMP_FT), LENGTH_FT + _COURT_CLAMP_FT)
-    return x, y
+    return _clamp_xy(court_xy[0] * WIDTH_FT, court_xy[1] * LENGTH_FT)
 
 
-def physics_arc_world_ft(
-    traj: list[BallSample], bounces: list[Bounce], start_frame: int, end_frame: int, fps: float
+def _clamp_xy(x: float, y: float) -> tuple[float, float]:
+    """Clamp a horizontal point to the court footprint + slack (backstop against a wild ray solve)."""
+    return (min(max(x, -_COURT_CLAMP_FT), WIDTH_FT + _COURT_CLAMP_FT),
+            min(max(y, -_COURT_CLAMP_FT), LENGTH_FT + _COURT_CLAMP_FT))
+
+
+def _camera_center(camera: CameraModel) -> tuple[np.ndarray, np.ndarray] | None:
+    """``(O, Minv)``: camera centre (world ft) and ``M⁻¹`` (``M = P[:, :3]``) for pixel-ray back-proj.
+
+    A point ``O + s·(Minv @ [u, v, 1])`` reprojects through ``P`` **exactly** to ``(u, v)`` — for any
+    ``s`` — regardless of focal error. So fixing the depth via a known height keeps the 3D ball on its
+    detection's ray (it overlays the 2D track) and can't fly off the way a free-depth solve can.
+    """
+    M = camera.P[:, :3]
+    try:
+        Minv = np.linalg.inv(M)
+    except np.linalg.LinAlgError:
+        return None
+    return -Minv @ camera.P[:, 3], Minv
+
+
+def _height_anchor_frames(
+    out: list[BallSample], bounces: list[Bounce], start_frame: int, end_frame: int
+) -> list[int]:
+    """Frames pinned to the floor (Z=0): the rally endpoints + every in-span bounce."""
+    af = {out[0].frame, out[-1].frame}
+    af.update(b.frame for b in bounces if start_frame <= b.frame <= end_frame)
+    return sorted(af)
+
+
+def _height_at(frame: int, anchor_frames: list[int], fps: float) -> float:
+    """Modeled ball height (ft) at ``frame``: a capped gravity arc between bracketing ground anchors."""
+    af = anchor_frames
+    if len(af) < 2 or frame <= af[0] or frame >= af[-1]:
+        return 0.0
+    lo = max(a for a in af if a <= frame)
+    hi = min(a for a in af if a > frame)
+    T = (hi - lo) / fps
+    t = (frame - lo) / fps
+    z = 0.5 * G_FT * t * (T - t)  # projectile launched/landing at Z=0
+    apex_raw = G_FT * T * T / 8.0
+    if apex_raw > _ARC_APEX_CAP_FT:
+        z *= _ARC_APEX_CAP_FT / apex_raw  # cap the peak (e.g. a missed bounce leaving a huge gap)
+    return max(z, 0.0)
+
+
+def ball_world_ft(
+    traj: list[BallSample],
+    bounces: list[Bounce],
+    camera: CameraModel | None,
+    start_frame: int,
+    end_frame: int,
+    fps: float,
 ) -> list[BallSample]:
-    """Set a plausible, on-court ``world_ft`` at **every** sample from a gravity-arc model.
+    """Set an on-court ``world_ft`` at every sample by placing each ball pixel on its camera ray.
 
-    Single-camera height/depth can't be measured reliably, so instead of the fragile metric solve we
-    anchor the ball to the signals that *are* reliable: ground contacts (bounces, exact via the
-    homography) plus the rally endpoints, all at ``Z = 0``. Horizontally the ball moves linearly
-    between consecutive anchors (bounces alternate sides, so it crosses the net back and forth);
-    vertically each inter-anchor flight is a gravity parabola ``Z(t) = ½·g·t·(T−t)`` (launch/land at
-    ``Z = 0``), its apex ``g·T²/8`` capped at :data:`_ARC_APEX_CAP_FT`. Needs **no camera** — only the
-    homography-derived court positions — so the 3D ball appears for any calibrated rally and is
-    on-court by construction. ``speed_mph`` is finite-differenced from the resulting 3D path; the
-    ``interpolated`` flag (meaning "the 2D ball was detected here") is left untouched.
+    Single-camera height/depth can't be *measured*, so we fix the height from a model — a gravity arc
+    anchored to the reliable ground contacts (bounces + rally endpoints, all Z=0) — and read the
+    horizontal off the **per-frame** pixel ray at that height (``s = (Z − O_z) / d_z``). Because the
+    point stays on the detection's ray it reprojects exactly to the 2D track (the 3D ball overlays
+    what you see), and at Z=0 it equals the exact ground projection; for airborne frames it walks back
+    along the ray, undoing the ground-projection's outward bias. With no camera (or a degenerate ray)
+    it falls back to the raw ground projection ``court_xy`` at the modeled height. ``speed_mph`` is
+    finite-differenced from the result; the ``interpolated`` flag is left untouched.
     """
     if not traj:
         return traj
     out = [s.model_copy() for s in sorted(traj, key=lambda s: s.frame)]
-
-    # Ground anchors (frame -> (X, Y) ft), one per frame: rally endpoints + each in-span bounce.
-    anchors: dict[int, tuple[float, float]] = {}
-    for edge in (out[0], out[-1]):
-        g = _ground_ft(edge.court_xy)
-        if g is not None:
-            anchors.setdefault(edge.frame, g)
-    for b in bounces:
-        if start_frame <= b.frame <= end_frame:
-            anchors[b.frame] = _ground_ft(b.court_xy)  # type: ignore[assignment]  # bounce xy is set
-    af = sorted(anchors)
-    if len(af) < 2:  # not enough to interpolate a path — leave the track as-is
-        return out
-
-    def bracket(frame: int) -> tuple[int, int]:
-        f0 = af[0] if frame <= af[0] else af[-1] if frame >= af[-1] else 0
-        if f0:
-            return f0, f0
-        lo = max(a for a in af if a <= frame)
-        hi = min(a for a in af if a > frame)
-        return lo, hi
+    af = _height_anchor_frames(out, bounces, start_frame, end_frame)
+    cc = _camera_center(camera) if camera is not None else None
 
     for s in out:
-        a, c = bracket(s.frame)
-        ax, ay = anchors[a]
-        if a == c:  # outside the anchor span — rest on the nearest ground anchor
-            s.world_ft = (ax, ay, 0.0)
+        z = _height_at(s.frame, af, fps)
+        xy: tuple[float, float] | None = None
+        if cc is not None:
+            cam_o, Minv = cc
+            d = Minv @ np.array([float(s.px[0]), float(s.px[1]), 1.0])
+            if abs(d[2]) > 1e-9:  # ray meets the horizontal Z=z plane at a unique point
+                w = cam_o + (z - cam_o[2]) / d[2] * d  # ray sign/scale is arbitrary; intersection isn't
+                xy = _clamp_xy(float(w[0]), float(w[1]))
+        if xy is None:  # no camera / degenerate ray -> raw ground projection at the modeled height
+            xy = _ground_ft(s.court_xy)
+        if xy is None:
             continue
-        cx, cy = anchors[c]
-        span = c - a
-        frac = (s.frame - a) / span
-        T = span / fps
-        t = frac * T
-        z = 0.5 * G_FT * t * (T - t)  # gravity arc, 0 at both anchors
-        apex_raw = G_FT * T * T / 8.0
-        if apex_raw > _ARC_APEX_CAP_FT:
-            z *= _ARC_APEX_CAP_FT / apex_raw  # uniform scale keeps the parabola shape, caps the peak
-        s.world_ft = (ax + (cx - ax) * frac, ay + (cy - ay) * frac, max(z, 0.0))
+        s.world_ft = (xy[0], xy[1], z)
 
     # Finite-difference speed from the now-continuous 3D path (central where possible).
     n = len(out)

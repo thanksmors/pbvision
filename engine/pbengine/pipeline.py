@@ -25,7 +25,7 @@ import numpy as np
 
 from pbengine.ball.tracker import BallTracker
 from pbengine.bounce.heuristic import detect_bounces
-from pbengine.court.court_model import side_of
+from pbengine.court.court_model import LENGTH_FT, WIDTH_FT, side_of
 from pbengine.court.detector import CourtDetector
 from pbengine.detect.players import PlayerDetector
 from pbengine.errors import CourtNotFound, ModelUnavailable
@@ -282,6 +282,39 @@ def _recover_camera(homography: np.ndarray, width: int, height: int, max_reproj_
     return cam
 
 
+_OFFC = 4.0  # off-court slack (ft) for the diagnostic count; matches trajectory3d._COURT_CLAMP_FT
+
+
+def _log_rally_diag(i, span, measured, bounces, traj, camera) -> None:
+    """Per-rally diagnostics to run.log so the 3D-ball approach can be judged by the numbers."""
+    def _rng(vals):
+        return f"[{min(vals):.1f},{max(vals):.1f}]" if vals else "[]"
+
+    cxs = [s.court_xy[0] for s in measured if s.court_xy]
+    cys = [s.court_xy[1] for s in measured if s.court_xy]
+    wf = [s.world_ft for s in traj if s.world_ft is not None]
+    off = sum(1 for w in wf if not (-_OFFC <= w[0] <= WIDTH_FT + _OFFC
+                                    and -_OFFC <= w[1] <= LENGTH_FT + _OFFC))
+    cam = f"reproj={camera.reprojection_error_px:.1f}px" if camera is not None else "none"
+    bl = ", ".join(f"f{b.frame}:{b.side.value}@({b.court_xy[0]:.2f},{b.court_xy[1]:.2f})"
+                   f"{'' if b.in_bounds else '!OUT'}" for b in bounces)
+    print(
+        f"rally {i}: f{span.start_frame}-{span.end_frame} · {len(measured)} measured · "
+        f"{len(bounces)} bounces [{bl}] · camera={cam} · "
+        f"court_xy X{_rng(cxs)} Y{_rng(cys)} · "
+        f"world_ft X{_rng([w[0] for w in wf])} Y{_rng([w[1] for w in wf])} "
+        f"Z{_rng([w[2] for w in wf])} · off-court {off}/{len(wf)}", flush=True)
+    # One-shot bias estimate: at the highest modeled point, how far the ray+height result sits from the
+    # raw ground projection (the airborne outward-bias the camera ray corrects).
+    if camera is not None and wf:
+        hi = max((s for s in traj if s.world_ft is not None), key=lambda s: s.world_ft[2])
+        if hi.world_ft[2] > 0.5 and hi.court_xy is not None:
+            gx, gy = hi.court_xy[0] * WIDTH_FT, hi.court_xy[1] * LENGTH_FT
+            d = ((gx - hi.world_ft[0]) ** 2 + (gy - hi.world_ft[1]) ** 2) ** 0.5
+            print(f"  bias@f{hi.frame} (Z={hi.world_ft[2]:.1f}ft): ground-proj vs ray "
+                  f"differ {d:.1f}ft", flush=True)
+
+
 def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point]:
     """Segment the ball trajectory into points and run serve/bounce/winner per rally.
 
@@ -317,12 +350,12 @@ def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point
         # Backstop: the physics/2D fills only bridge short within-arc gaps. Linearly fill every frame
         # still missing in the rally span so the stored track is complete for downstream analysis.
         traj = densify_rally(traj, span.start_frame, span.end_frame, bounces, camera, fps)
-        # Set a plausible, on-court 3D position at every frame: a gravity arc anchored to the reliable
-        # ground contacts (bounces + rally edges). Replaces the fragile metric height, which rode an
-        # unreliable single-image focal and flung the ball off-court. Needs only the homography.
-        from pbengine.ball.trajectory3d import physics_arc_world_ft
+        # Lift to 3D: place each ball pixel on its camera ray at a bounce-anchored modeled height, so
+        # the 3D ball overlays the 2D track (reprojects to the detection) instead of floating off.
+        from pbengine.ball.trajectory3d import ball_world_ft
 
-        traj = physics_arc_world_ft(traj, bounces, span.start_frame, span.end_frame, fps)
+        traj = ball_world_ft(traj, bounces, camera, span.start_frame, span.end_frame, fps)
+        _log_rally_diag(i, span, measured, bounces, traj, camera)
         points.append(
             Point(
                 point_index=i,
