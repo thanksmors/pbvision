@@ -127,7 +127,7 @@ def analyze_match(
     )
 
     report("rallies", 0.85)
-    points = _build_points(ball, meta.fps, camera)
+    points = _build_points(ball, meta.fps, camera, players)
 
     result = MatchResult(
         match_id=str(uuid.uuid4()),
@@ -285,7 +285,7 @@ def _recover_camera(homography: np.ndarray, width: int, height: int, max_reproj_
 _OFFC = 4.0  # off-court slack (ft) for the diagnostic count; matches trajectory3d._COURT_CLAMP_FT
 
 
-def _log_rally_diag(i, span, measured, bounces, traj, camera) -> None:
+def _log_rally_diag(i, span, measured, bounces, traj, camera, shots=()) -> None:
     """Per-rally diagnostics to run.log so the 3D-ball approach can be judged by the numbers."""
     def _rng(vals):
         return f"[{min(vals):.1f},{max(vals):.1f}]" if vals else "[]"
@@ -313,9 +313,15 @@ def _log_rally_diag(i, span, measured, bounces, traj, camera) -> None:
             d = ((gx - hi.world_ft[0]) ** 2 + (gy - hi.world_ft[1]) ** 2) ** 0.5
             print(f"  bias@f{hi.frame} (Z={hi.world_ft[2]:.1f}ft): ground-proj vs ray "
                   f"differ {d:.1f}ft", flush=True)
+    if shots:
+        sl = " -> ".join(
+            f"{s.shot_index}:{s.shot_type.value}@f{s.frame}"
+            f"({'?' if s.team is None else s.team.value}"
+            f"{'' if s.speed_mph is None else f',{s.speed_mph:.0f}mph'})" for s in shots)
+        print(f"  shots ({len(shots)}): {sl}", flush=True)
 
 
-def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point]:
+def _build_points(ball: list[BallSample], fps: float, camera=None, players=None) -> list[Point]:
     """Segment the ball trajectory into points and run serve/bounce/winner per rally.
 
     When ``camera`` is available, each rally's ball track is lifted to 3D (feet) with per-frame
@@ -350,19 +356,27 @@ def _build_points(ball: list[BallSample], fps: float, camera=None) -> list[Point
         # Backstop: the physics/2D fills only bridge short within-arc gaps. Linearly fill every frame
         # still missing in the rally span so the stored track is complete for downstream analysis.
         traj = densify_rally(traj, span.start_frame, span.end_frame, bounces, camera, fps)
-        # Lift to 3D: place each ball pixel on its camera ray at a bounce-anchored modeled height, so
-        # the 3D ball overlays the 2D track (reprojects to the detection) instead of floating off.
+        # Detect shots (player–ball contacts) from court_xy reversals; their contact heights anchor the
+        # ball height model, then we enrich them (speed/type/outcome) from the lifted 3D track.
         from pbengine.ball.trajectory3d import ball_world_ft
+        from pbengine.rally.shots import detect_shots, enrich_shots, shot_contacts
 
-        traj = ball_world_ft(traj, bounces, camera, span.start_frame, span.end_frame, fps)
-        _log_rally_diag(i, span, measured, bounces, traj, camera)
+        shots = detect_shots(measured, bounces, players or [], serve, fps)
+        # Lift to 3D: place each ball pixel on its camera ray at a height anchored to bounces, the net,
+        # and contacts, so the 3D ball overlays the 2D track (reprojects to the detection) and clears
+        # the net instead of floating off.
+        traj = ball_world_ft(traj, bounces, camera, span.start_frame, span.end_frame, fps,
+                             contacts=shot_contacts(shots))
+        shots = enrich_shots(shots, traj, bounces, winner)
+        _log_rally_diag(i, span, measured, bounces, traj, camera, shots)
         points.append(
             Point(
                 point_index=i,
                 start_frame=span.start_frame,
                 end_frame=span.end_frame,
                 serve=serve,
-                rally_length_shots=max(0, len(bounces)),
+                rally_length_shots=len(shots),
+                shots=shots,
                 bounces=bounces,
                 ball_trajectory=traj,
                 winner_team=winner,

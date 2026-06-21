@@ -35,6 +35,23 @@ class WinReason(str, Enum):
     unknown = "unknown"
 
 
+class ShotType(str, Enum):
+    serve = "serve"
+    return_ = "return"
+    drive = "drive"
+    dink = "dink"
+    drop = "drop"
+    volley = "volley"
+    lob = "lob"
+    groundstroke = "groundstroke"
+
+
+class ShotOutcome(str, Enum):
+    in_play = "in_play"   # rally continued
+    winner = "winner"     # ended the rally in the hitter's favor
+    error = "error"       # ended the rally against the hitter (out / net / set up a double bounce)
+
+
 class VideoMeta(BaseModel):
     fps: float
     frames: int
@@ -71,6 +88,26 @@ class Bounce(BaseModel):
     court_xy: CourtXY
     side: Team
     in_bounds: bool
+
+
+class Shot(BaseModel):
+    """A player–ball contact (a paddle hit), the unit of rally analysis.
+
+    Distinct from :class:`Bounce` (ball↔ground). Contacts are detected at ballistic-segment breaks and
+    attributed to the nearest player; features (speed, height, zones) drive shot categorization and the
+    rally recap. All fields beyond ``frame`` are best-effort and may be absent when tracking is thin.
+    """
+
+    shot_index: int = Field(..., description="0-based order within the rally")
+    frame: int
+    player_track_id: int | None = Field(None, description="track id of the hitter (None if unattributed)")
+    team: Team | None = None
+    shot_type: ShotType = ShotType.groundstroke
+    speed_mph: float | None = Field(None, description="ball speed just after contact (3D)")
+    contact_height_ft: float | None = Field(None, description="ball height at contact")
+    contact_zone: str | None = Field(None, description='"kitchen" | "transition" | "baseline"')
+    landing_zone: str | None = Field(None, description="zone where the following arc first lands")
+    outcome: "ShotOutcome" = Field(ShotOutcome.in_play, description="rally-ending result, if terminal")
 
 
 class BallSample(BaseModel):
@@ -124,6 +161,7 @@ class Point(BaseModel):
     end_frame: int
     serve: Serve | None = None
     rally_length_shots: int = 0
+    shots: list[Shot] = Field(default_factory=list)
     bounces: list[Bounce] = Field(default_factory=list)
     ball_trajectory: list[BallSample] = Field(default_factory=list)
     winner_team: Team | None = None

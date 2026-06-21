@@ -26,7 +26,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from pbengine.ball.camera import CameraModel
-from pbengine.court.court_model import LENGTH_FT, WIDTH_FT
+from pbengine.court.court_model import LENGTH_FT, NET_CLEARANCE_FT, NET_Y, WIDTH_FT
 from pbengine.schema.models import BallSample, Bounce
 
 G_FT = 32.174  # gravitational acceleration, ft/s^2
@@ -503,29 +503,64 @@ def _camera_center(camera: CameraModel) -> tuple[np.ndarray, np.ndarray] | None:
     return -Minv @ camera.P[:, 3], Minv
 
 
-def _height_anchor_frames(
-    out: list[BallSample], bounces: list[Bounce], start_frame: int, end_frame: int
-) -> list[int]:
-    """Frames pinned to the floor (Z=0): the rally endpoints + every in-span bounce."""
-    af = {out[0].frame, out[-1].frame}
-    af.update(b.frame for b in bounces if start_frame <= b.frame <= end_frame)
-    return sorted(af)
+_CONTACT_Z_RANGE = (0.5, 10.0)  # plausible ball height at a paddle contact (dink .. overhead), ft
 
 
-def _height_at(frame: int, anchor_frames: list[int], fps: float) -> float:
-    """Modeled ball height (ft) at ``frame``: a capped gravity arc between bracketing ground anchors."""
-    af = anchor_frames
-    if len(af) < 2 or frame <= af[0] or frame >= af[-1]:
+def _net_crossing_frames(out: list[BallSample]) -> list[int]:
+    """Frames where the ball crosses the net line (``court_xy.y`` passes ``NET_Y``)."""
+    pts = [(s.frame, s.court_xy[1]) for s in out if s.court_xy is not None]
+    crossings: list[int] = []
+    for (f0, y0), (f1, y1) in zip(pts, pts[1:]):
+        if (y0 - NET_Y) * (y1 - NET_Y) < 0:  # straddles the net between these samples
+            crossings.append(f0 if abs(y0 - NET_Y) <= abs(y1 - NET_Y) else f1)
+    return crossings
+
+
+def _height_knots(
+    out: list[BallSample],
+    bounces: list[Bounce],
+    contacts: list[tuple[int, float]] | None,
+    start_frame: int,
+    end_frame: int,
+) -> list[tuple[int, float]]:
+    """Typed height anchors ``(frame, Z_ft)`` the modeled arc must pass through, by precedence.
+
+    Floor contacts pin ``Z=0`` (bounces, rally edges); net-crossings pin ~net clearance so the arc
+    can't dip through the tape; paddle contacts pin the hitter's contact height. Later writes win, so a
+    real bounce/contact overrides a coincident net-crossing.
+    """
+    knots: dict[int, float] = {}
+    for f in _net_crossing_frames(out):  # lowest precedence
+        knots[f] = NET_CLEARANCE_FT
+    knots.setdefault(out[0].frame, 0.0)
+    knots.setdefault(out[-1].frame, 0.0)
+    for b in bounces:
+        if start_frame <= b.frame <= end_frame:
+            knots[b.frame] = 0.0
+    for f, z in contacts or []:  # highest precedence
+        if start_frame <= f <= end_frame:
+            knots[f] = min(max(z, _CONTACT_Z_RANGE[0]), _CONTACT_Z_RANGE[1])
+    return sorted(knots.items())
+
+
+def _height_at(frame: int, knots: list[tuple[int, float]], fps: float) -> float:
+    """Modeled ball height (ft) at ``frame``: a capped gravity arc between bracketing height knots."""
+    if not knots:
         return 0.0
-    lo = max(a for a in af if a <= frame)
-    hi = min(a for a in af if a > frame)
-    T = (hi - lo) / fps
-    t = (frame - lo) / fps
-    z = 0.5 * G_FT * t * (T - t)  # projectile launched/landing at Z=0
+    if frame <= knots[0][0]:
+        return knots[0][1]
+    if frame >= knots[-1][0]:
+        return knots[-1][1]
+    lo = max((k for k in knots if k[0] <= frame), key=lambda k: k[0])
+    hi = min((k for k in knots if k[0] > frame), key=lambda k: k[0])
+    T = (hi[0] - lo[0]) / fps
+    t = (frame - lo[0]) / fps
+    baseline = lo[1] + (hi[1] - lo[1]) * (t / T)  # linear ramp between the two knot heights
+    bump = 0.5 * G_FT * t * (T - t)               # gravity parabola on top (0 at both knots)
     apex_raw = G_FT * T * T / 8.0
     if apex_raw > _ARC_APEX_CAP_FT:
-        z *= _ARC_APEX_CAP_FT / apex_raw  # cap the peak (e.g. a missed bounce leaving a huge gap)
-    return max(z, 0.0)
+        bump *= _ARC_APEX_CAP_FT / apex_raw  # cap the peak (e.g. a missed bounce leaving a huge gap)
+    return max(baseline + bump, 0.0)
 
 
 def ball_world_ft(
@@ -535,26 +570,29 @@ def ball_world_ft(
     start_frame: int,
     end_frame: int,
     fps: float,
+    contacts: list[tuple[int, float]] | None = None,
 ) -> list[BallSample]:
     """Set an on-court ``world_ft`` at every sample by placing each ball pixel on its camera ray.
 
     Single-camera height/depth can't be *measured*, so we fix the height from a model — a gravity arc
-    anchored to the reliable ground contacts (bounces + rally endpoints, all Z=0) — and read the
-    horizontal off the **per-frame** pixel ray at that height (``s = (Z − O_z) / d_z``). Because the
-    point stays on the detection's ray it reprojects exactly to the 2D track (the 3D ball overlays
-    what you see), and at Z=0 it equals the exact ground projection; for airborne frames it walks back
-    along the ray, undoing the ground-projection's outward bias. With no camera (or a degenerate ray)
-    it falls back to the raw ground projection ``court_xy`` at the modeled height. ``speed_mph`` is
-    finite-differenced from the result; the ``interpolated`` flag is left untouched.
+    through typed height knots (bounces & rally edges at Z=0, net-crossings at net clearance, and
+    paddle ``contacts`` at the hitter's contact height) — and read the horizontal off the **per-frame**
+    pixel ray at that height (``s = (Z − O_z) / d_z``). Because the point stays on the detection's ray
+    it reprojects exactly to the 2D track (the 3D ball overlays what you see), and at Z=0 it equals the
+    exact ground projection; for airborne frames it walks back along the ray, undoing the
+    ground-projection's outward bias. With no camera (or a degenerate ray) it falls back to the raw
+    ground projection ``court_xy`` at the modeled height. ``contacts`` is a list of
+    ``(frame, height_ft)``. ``speed_mph`` is finite-differenced from the result; the ``interpolated``
+    flag is left untouched.
     """
     if not traj:
         return traj
     out = [s.model_copy() for s in sorted(traj, key=lambda s: s.frame)]
-    af = _height_anchor_frames(out, bounces, start_frame, end_frame)
+    knots = _height_knots(out, bounces, contacts, start_frame, end_frame)
     cc = _camera_center(camera) if camera is not None else None
 
     for s in out:
-        z = _height_at(s.frame, af, fps)
+        z = _height_at(s.frame, knots, fps)
         xy: tuple[float, float] | None = None
         if cc is not None:
             cam_o, Minv = cc

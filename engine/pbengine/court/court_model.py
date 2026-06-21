@@ -16,6 +16,8 @@ from __future__ import annotations
 WIDTH_FT = 20.0
 LENGTH_FT = 44.0
 KITCHEN_FT = 7.0  # non-volley zone depth from the net
+NET_HEIGHT_FT = 36.0 / 12.0  # regulation net height (36 in)
+NET_CLEARANCE_FT = 3.2       # modeled ball height when it crosses the net (just over the tape)
 
 # Normalized landmark positions. Keys are stable names used when matching a court-detector's
 # keypoints to the reference template for the homography solve.
