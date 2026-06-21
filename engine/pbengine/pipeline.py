@@ -15,6 +15,8 @@ rented GPU box::
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 import time
 import uuid
 from collections import defaultdict
@@ -125,6 +127,15 @@ def analyze_match(
         "ball", warnings, [], ball_tracker.track, video_path, homography=homography, stride=stride,
         progress=ball_prog,
     )
+    # Ball diagnostics: coverage, inter-detection speed, and gap structure -> run.log, so a real run
+    # shows whether fast balls are missed by the CNN (low coverage + big gaps) vs killed downstream.
+    try:
+        from pbengine.ball.diag import coverage_report
+
+        gate = ball_tracker._gate_px(meta.width, meta.height)
+        coverage_report(ball, meta.frames, meta.fps, gate_px=gate)
+    except Exception as exc:  # diagnostics must never break a run
+        print(f"ball diag: skipped ({exc})", flush=True)
 
     report("rallies", 0.85)
     points = _build_points(ball, meta.fps, camera, players)
@@ -180,6 +191,37 @@ def _solve_court(
     return None, None
 
 
+def _log_raw_tracks(raw_by_id, side_votes, homography) -> None:
+    """Log the raw, pre-stitch ByteTrack roster so a real run shows what detection actually saw.
+
+    This is the missing top of the player funnel: the roster log (players/select.py) only fires after
+    stitching + capping, so it can't tell "the 4th player was never detected" from "stitch merged two
+    real players" from "the per-side cap dropped one". This prints, per raw track id, its presence,
+    span, court-position median, in-bounds fraction, and side-vote tally.
+    """
+    from statistics import median
+
+    from pbengine.court.court_model import is_in_bounds
+
+    if homography is None:
+        print(f"DETECT: {len(raw_by_id)} raw tracks · homography MISSING "
+              "(no court sides; on-court selection is skipped, every track is kept)", flush=True)
+        return
+    print(f"DETECT: {len(raw_by_id)} raw tracks · homography present", flush=True)
+    for tid in sorted(raw_by_id):
+        recs = raw_by_id[tid]
+        frames = [r["frame"] for r in recs]
+        xs = [r["court_xy"][0] for r in recs]
+        ys = [r["court_xy"][1] for r in recs]
+        inb = sum(1 for x, y in zip(xs, ys) if is_in_bounds((x, y), 0.35))
+        votes = side_votes.get(tid, [])
+        va = votes.count("A")
+        vb = votes.count("B")
+        print(f"  raw #{tid} frames={len(recs)} span=[{min(frames)}-{max(frames)}] "
+              f"median=({median(xs):.2f},{median(ys):.2f}) inbounds={inb}/{len(recs)} "
+              f"votes(A={va} B={vb})", flush=True)
+
+
 def _track_players(
     video_path: Path, homography: np.ndarray | None, detector: PlayerDetector, camera=None,
     fps: float = 30.0, status_cb: StatusCb | None = None, total_frames: int | None = None,
@@ -217,6 +259,10 @@ def _track_players(
         )
         if homography is not None:
             side_votes[t.track_id].append(side_of(court_xy))
+
+    # DETECT diagnostics: the raw, pre-stitch roster. Logged so a real run shows whether ByteTrack
+    # ever saw a 4th distinct person (vs. it being lost later to stitching or the per-side cap).
+    _log_raw_tracks(raw_by_id, side_votes, homography)
 
     # Merge ByteTrack fragments of the same physical player (occlusion -> new id) so a player stays
     # one continuous person; the wider bridge cap below then glides the pose across the occlusion.
@@ -394,6 +440,41 @@ def _write_status(status_path: Path, job_id: str, state: str, stage: str, pct: f
     )
 
 
+class _Tee:
+    """Mirror writes to several streams (so CLI runs land all diagnostics in a pushable file too)."""
+
+    def __init__(self, *streams):
+        self._streams = streams
+
+    def write(self, data):
+        for s in self._streams:
+            s.write(data)
+        return len(data)
+
+    def flush(self):
+        for s in self._streams:
+            s.flush()
+
+
+def _install_diag_log(out: str | None):
+    """Tee stdout/stderr to a diagnostics file for CLI runs (the web app already captures run.log).
+
+    Honors ``PBV_DIAG_LOG`` if set; otherwise, for an interactive CLI run with an output path, writes
+    ``<out>.diag.log`` next to the result so the user has one file to ``git push`` for diagnosis.
+    Returns the file handle (kept open for the process) or ``None``.
+    """
+    path = os.environ.get("PBV_DIAG_LOG")
+    if path is None and out and sys.stdout.isatty():
+        path = str(Path(out).with_suffix(".diag.log"))
+    if not path:
+        return None
+    log = open(path, "w")  # noqa: SIM115 (held for the process lifetime)
+    sys.stdout = _Tee(sys.__stdout__, log)
+    sys.stderr = _Tee(sys.__stderr__, log)
+    print(f"[diag] mirroring engine output to {path}", flush=True)
+    return log
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Analyze a pickleball match video.")
     parser.add_argument("video", help="path to the match video")
@@ -443,6 +524,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    _install_diag_log(args.out)
     status_path = Path(args.status) if args.status else None
 
     # Fixture mode: inject scripted stand-ins and synthesize the video if it doesn't exist,

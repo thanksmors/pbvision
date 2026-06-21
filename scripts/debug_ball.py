@@ -23,6 +23,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "engine"))
 
+# Gap diagnostics live in the engine (pbengine.ball.diag) so the pipeline logs them too; re-exported
+# here under their original names for back-compat with callers/tests of this script.
+from pbengine.ball.diag import classify_gaps as _classify_gaps  # noqa: E402,F401
+from pbengine.ball.diag import gap_report as _gap_report  # noqa: E402
 from pbengine.ball.tracker import BallTracker  # noqa: E402
 
 _MODELS = Path(__file__).resolve().parents[1] / "engine" / "pbengine" / "models"
@@ -122,61 +126,6 @@ def _gate_report(raw, bt, w: int, h: int) -> None:
           f"  |  steps > auto gate (rejected now): {over_auto}")
     print(f"  detections kept: old-150 gate {kept_old}  ->  auto gate {kept_auto}  "
           f"(+{kept_auto - kept_old})")
-
-
-# Gap thresholds mirror the downstream behaviour (so the buckets mean something):
-#  - <= _BRIDGE_DELTA frame-step: fill_gaps_3d (trajectory3d, max_fill_gap=6) physics-bridges it.
-#  - > 0.6 s step: rally segmentation (rally/segmentation.py) starts a new rally.
-_BRIDGE_DELTA = 6  # frames between consecutive detections that still get interpolated
-
-
-def _classify_gaps(detected_frames, fps: float, bridge_delta: int = _BRIDGE_DELTA):
-    """Bucket the gaps *between* consecutive detections by how the pipeline treats them.
-
-    Returns ``(buckets, rally_delta)`` where buckets maps name -> list of ``(start_frame, delta)``
-    (delta = frame distance to the next detection). Leading/trailing missing frames are ignored —
-    only interior gaps affect arc continuity.
-    """
-    rally_delta = max(bridge_delta + 1, round(0.6 * fps))  # >0.6 s -> rally split
-    fs = sorted({int(f) for f in detected_frames})
-    buckets = {"bridged": [], "arc_break": [], "rally_split": []}
-    for a, b in zip(fs, fs[1:]):
-        d = b - a
-        if d <= 1:
-            continue
-        if d <= bridge_delta:
-            buckets["bridged"].append((a, d))
-        elif d <= rally_delta:
-            buckets["arc_break"].append((a, d))
-        else:
-            buckets["rally_split"].append((a, d))
-    return buckets, rally_delta
-
-
-def _gap_report(detected_frames, n: int, fps: float) -> None:
-    """Print the gap-length distribution so we can tell scattered short misses (harmless — bridged)
-    from clustered long ones (break the arc / split rallies) without re-running inference."""
-    buckets, rally_delta = _classify_gaps(detected_frames, fps)
-
-    def _missing(items):  # frames with no detection inside these gaps
-        return sum(d - 1 for _, d in items)
-
-    print(f"gap structure (gaps between detections; fps {fps:.0f}, "
-          f"bridge<= {_BRIDGE_DELTA} frames, rally-split> {rally_delta} frames):")
-    labels = [("bridged", f"bridged (<= {_BRIDGE_DELTA}f, filled by physics)"),
-              ("arc_break", f"arc-break ({_BRIDGE_DELTA + 1}..{rally_delta}f, visible break)"),
-              ("rally_split", f"rally-split (> {rally_delta}f, splits the rally)")]
-    for key, label in labels:
-        items = buckets[key]
-        print(f"  {label}: {len(items)} gaps, {_missing(items)} missing frames")
-    allgaps = buckets["arc_break"] + buckets["rally_split"]
-    if allgaps:
-        allgaps.sort(key=lambda g: g[1], reverse=True)
-        worst = ", ".join(f"{a / fps:.1f}s (+{d}f/{d / fps:.1f}s)" for a, d in allgaps[:5])
-        print(f"  largest breaks at: {worst}")
-        print("  => scrub the overlay to these timestamps to see if the ball is lost in fast motion.")
-    else:
-        print("  => no arc-breaking gaps: all gaps are physics-bridged. Phase 2 not warranted.")
 
 
 def _save_dets(path: str, raw, w: int, h: int, fps: float) -> None:

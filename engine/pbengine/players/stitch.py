@@ -82,9 +82,24 @@ def stitch_tracks(
         costs.sort()
         if costs and (len(costs) == 1 or costs[1][0] - costs[0][0] >= MARGIN_FT):
             ch = chains[costs[0][1]]
+            runner = f"{costs[1][0]:.1f}" if len(costs) > 1 else "none"
+            gap = s["first_frame"] - ch["last_frame"]
+            # A merge collapses two ByteTrack ids into one player; the lone-candidate branch (no
+            # runner-up to beat) is exactly where two distinct people on the same side can fuse.
+            print(f"stitch: track {tid} -> chain {ch['ids']} MERGED "
+                  f"(gap={gap}f cost={costs[0][0]:.1f} runner-up={runner})", flush=True)
             ch["ids"].append(tid)
             ch.update(last_frame=s["last_frame"], last_xy=s["last_xy"], vel=s["vel"])
         else:
+            best = f"{costs[0][0]:.1f}" if costs else "none"
+            runner = f"{costs[1][0]:.1f}" if len(costs) > 1 else "none"
+            reason = "no candidate within gap/side/dist" if not costs else "ambiguous (margin<2ft)"
+            print(f"stitch: track {tid} new chain ({reason}; best={best} runner-up={runner})",
+                  flush=True)
             chains.append({"ids": [tid], "last_frame": s["last_frame"], "last_xy": s["last_xy"],
                            "vel": s["vel"], "side": s["side"]})
-    return [ch["ids"] for ch in chains]
+    groups = [ch["ids"] for ch in chains]
+    merged = [g for g in groups if len(g) > 1]
+    print(f"stitch: {len(raw_by_id)} raw tracks -> {len(groups)} players"
+          + (f" ({len(merged)} stitched: {merged})" if merged else " (no merges)"), flush=True)
+    return groups
