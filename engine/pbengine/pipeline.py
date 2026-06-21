@@ -15,8 +15,6 @@ rented GPU box::
 from __future__ import annotations
 
 import argparse
-import os
-import sys
 import time
 import uuid
 from collections import defaultdict
@@ -262,7 +260,12 @@ def _track_players(
 
     # DETECT diagnostics: the raw, pre-stitch roster. Logged so a real run shows whether ByteTrack
     # ever saw a 4th distinct person (vs. it being lost later to stitching or the per-side cap).
-    _log_raw_tracks(raw_by_id, side_votes, homography)
+    # Diagnostics must never be able to abort a run, so failures are swallowed (they'd otherwise
+    # propagate past _skip_if_unavailable, which only tolerates ModelUnavailable).
+    try:
+        _log_raw_tracks(raw_by_id, side_votes, homography)
+    except Exception as exc:
+        print(f"DETECT diag: skipped ({exc})", flush=True)
 
     # Merge ByteTrack fragments of the same physical player (occlusion -> new id) so a player stays
     # one continuous person; the wider bridge cap below then glides the pose across the occlusion.
@@ -440,41 +443,6 @@ def _write_status(status_path: Path, job_id: str, state: str, stage: str, pct: f
     )
 
 
-class _Tee:
-    """Mirror writes to several streams (so CLI runs land all diagnostics in a pushable file too)."""
-
-    def __init__(self, *streams):
-        self._streams = streams
-
-    def write(self, data):
-        for s in self._streams:
-            s.write(data)
-        return len(data)
-
-    def flush(self):
-        for s in self._streams:
-            s.flush()
-
-
-def _install_diag_log(out: str | None):
-    """Tee stdout/stderr to a diagnostics file for CLI runs (the web app already captures run.log).
-
-    Honors ``PBV_DIAG_LOG`` if set; otherwise, for an interactive CLI run with an output path, writes
-    ``<out>.diag.log`` next to the result so the user has one file to ``git push`` for diagnosis.
-    Returns the file handle (kept open for the process) or ``None``.
-    """
-    path = os.environ.get("PBV_DIAG_LOG")
-    if path is None and out and sys.stdout.isatty():
-        path = str(Path(out).with_suffix(".diag.log"))
-    if not path:
-        return None
-    log = open(path, "w")  # noqa: SIM115 (held for the process lifetime)
-    sys.stdout = _Tee(sys.__stdout__, log)
-    sys.stderr = _Tee(sys.__stderr__, log)
-    print(f"[diag] mirroring engine output to {path}", flush=True)
-    return log
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Analyze a pickleball match video.")
     parser.add_argument("video", help="path to the match video")
@@ -524,7 +492,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    _install_diag_log(args.out)
     status_path = Path(args.status) if args.status else None
 
     # Fixture mode: inject scripted stand-ins and synthesize the video if it doesn't exist,

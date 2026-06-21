@@ -116,6 +116,27 @@ def job_log(job_id: str) -> Response:
     return Response(content=jobs.read_log_tail(job_id), media_type="text/plain")
 
 
+@app.get("/api/matches/{job_id}/result.json")
+def download_result(job_id: str) -> FileResponse:
+    """The analysis ``result.json`` as a file download (the UI 'download results' button)."""
+    path = jobs.job_dir(job_id) / "result.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="result not ready")
+    return FileResponse(path, media_type="application/json", filename=f"{job_id}-result.json")
+
+
+@app.get("/api/matches/{job_id}/run.log")
+def download_log(job_id: str) -> FileResponse:
+    """The full engine ``run.log`` as a download — detection/stitch/ball diagnostics + any traceback.
+
+    Distinct from ``/api/jobs/{id}/log`` (which returns only the tail for the live progress panel).
+    """
+    path = jobs.job_dir(job_id) / "run.log"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="no log for this match yet")
+    return FileResponse(path, media_type="text/plain", filename=f"{job_id}-run.log")
+
+
 @app.get("/api/matches/{job_id}")
 def match_result(job_id: str) -> Response:
     result = jobs.read_result(job_id)
