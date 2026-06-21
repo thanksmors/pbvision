@@ -1,0 +1,25 @@
+{
+  "match_id": "76b7fe84-423c-4ff6-95fc-c8f951dafb39",
+  "video": {
+    "fps": 30.0,
+    "frames": 3096,
+    "width": 1920,
+    "height": 1080
+  },
+  "court": null,
+  "points": [],
+  "players": [],
+  "engine": {
+    "version": "0.1.0",
+    "models": {
+      "detector": "yolo26m",
+      "ball": "wasb-tennis",
+      "court": "tenniscourtdetector"
+    }
+  },
+  "warnings": [
+    "court: TennisCourtDetector not available. Initialize the submodule under engine/pbengine/third_party/TennisCourtDetector and fetch weights.",
+    "players: ultralytics not installed. Install the 'ml' extra: pip install -e '.[ml]'",
+    "ball: WASB-SBDT not available. Initialize the submodule under engine/pbengine/third_party/WASB-SBDT and fetch weights via scripts/download_weights.sh."
+  ]
+}
