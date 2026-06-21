@@ -1,0 +1,1482 @@
+players: preset=balanced weights=yolo11m-pose.pt imgsz=960 conf=0.15 vid_stride=1 tracker=bytetrack_sensitive.yaml augment=False device=cpu
+[00:40:09] [   2%] +0s probe
+video: 1920x1080 @ 30fps · 3096 frames (~1.7 min)
+[00:40:10] [  10%] +0s court
+[00:40:10] [  30%] +0s players
+players: 1/3096 (0%) · 0.0 fps · elapsed 0:59 · ETA 3063:59
+[00:42:07] [  30%] +117s players 1/3096
+players: 10/3096 (0%) · 0.2 fps · elapsed 1:01 · ETA 316:38
+[00:42:09] [  30%] +119s players 10/3096
+players: 19/3096 (1%) · 0.3 fps · elapsed 1:03 · ETA 172:05
+[00:42:11] [  30%] +121s players 19/3096
+players: 27/3096 (1%) · 0.4 fps · elapsed 1:05 · ETA 124:36
+[00:42:13] [  30%] +123s players 27/3096
+players: 35/3096 (1%) · 0.5 fps · elapsed 1:07 · ETA 98:47
+[00:42:15] [  30%] +125s players 35/3096
+players: 43/3096 (1%) · 0.6 fps · elapsed 1:09 · ETA 82:34
+[00:42:17] [  30%] +127s players 43/3096
+players: 52/3096 (2%) · 0.7 fps · elapsed 1:12 · ETA 70:15
+[00:42:20] [  31%] +130s players 52/3096
+players: 60/3096 (2%) · 0.8 fps · elapsed 1:14 · ETA 62:26
+[00:42:22] [  31%] +132s players 60/3096
+players: 68/3096 (2%) · 0.9 fps · elapsed 1:16 · ETA 56:26
+[00:42:24] [  31%] +134s players 68/3096
+players: 76/3096 (2%) · 1.0 fps · elapsed 1:18 · ETA 51:44
+[00:42:26] [  31%] +136s players 76/3096
+players: 84/3096 (3%) · 1.0 fps · elapsed 1:20 · ETA 47:54
+[00:42:28] [  31%] +138s players 84/3096
+players: 92/3096 (3%) · 1.1 fps · elapsed 1:22 · ETA 44:43
+[00:42:30] [  31%] +140s players 92/3096
+players: 100/3096 (3%) · 1.2 fps · elapsed 1:24 · ETA 42:04
+[00:42:32] [  31%] +142s players 100/3096
+players: 108/3096 (3%) · 1.3 fps · elapsed 1:26 · ETA 39:49
+[00:42:34] [  31%] +144s players 108/3096
+players: 116/3096 (4%) · 1.3 fps · elapsed 1:28 · ETA 37:53
+[00:42:36] [  31%] +146s players 116/3096
+players: 124/3096 (4%) · 1.4 fps · elapsed 1:30 · ETA 36:11
+[00:42:38] [  31%] +148s players 124/3096
+players: 132/3096 (4%) · 1.4 fps · elapsed 1:32 · ETA 34:41
+[00:42:40] [  31%] +150s players 132/3096
+players: 140/3096 (5%) · 1.5 fps · elapsed 1:34 · ETA 33:20
+[00:42:42] [  31%] +152s players 140/3096
+players: 148/3096 (5%) · 1.5 fps · elapsed 1:36 · ETA 32:10
+[00:42:44] [  31%] +154s players 148/3096
+players: 156/3096 (5%) · 1.6 fps · elapsed 1:39 · ETA 31:05
+[00:42:47] [  32%] +157s players 156/3096
+players: 164/3096 (5%) · 1.6 fps · elapsed 1:41 · ETA 30:07
+[00:42:49] [  32%] +159s players 164/3096
+players: 172/3096 (6%) · 1.7 fps · elapsed 1:43 · ETA 29:15
+[00:42:51] [  32%] +161s players 172/3096
+players: 180/3096 (6%) · 1.7 fps · elapsed 1:45 · ETA 28:26
+[00:42:53] [  32%] +163s players 180/3096
+players: 188/3096 (6%) · 1.7 fps · elapsed 1:47 · ETA 27:42
+[00:42:55] [  32%] +165s players 188/3096
+players: 196/3096 (6%) · 1.8 fps · elapsed 1:49 · ETA 27:02
+[00:42:57] [  32%] +167s players 196/3096
+players: 204/3096 (7%) · 1.8 fps · elapsed 1:51 · ETA 26:24
+[00:42:59] [  32%] +169s players 204/3096
+players: 212/3096 (7%) · 1.9 fps · elapsed 1:53 · ETA 25:49
+[00:43:01] [  32%] +171s players 212/3096
+players: 220/3096 (7%) · 1.9 fps · elapsed 1:55 · ETA 25:16
+[00:43:04] [  32%] +174s players 220/3096
+players: 228/3096 (7%) · 1.9 fps · elapsed 1:58 · ETA 24:45
+[00:43:06] [  32%] +176s players 228/3096
+players: 236/3096 (8%) · 2.0 fps · elapsed 2:00 · ETA 24:17
+[00:43:08] [  32%] +178s players 236/3096
+players: 244/3096 (8%) · 2.0 fps · elapsed 2:02 · ETA 23:51
+[00:43:10] [  32%] +180s players 244/3096
+players: 252/3096 (8%) · 2.0 fps · elapsed 2:04 · ETA 23:26
+[00:43:12] [  32%] +182s players 252/3096
+players: 260/3096 (8%) · 2.1 fps · elapsed 2:06 · ETA 23:02
+[00:43:14] [  33%] +184s players 260/3096
+players: 268/3096 (9%) · 2.1 fps · elapsed 2:08 · ETA 22:40
+[00:43:16] [  33%] +186s players 268/3096
+players: 276/3096 (9%) · 2.1 fps · elapsed 2:11 · ETA 22:18
+[00:43:19] [  33%] +189s players 276/3096
+players: 284/3096 (9%) · 2.1 fps · elapsed 2:13 · ETA 21:58
+[00:43:21] [  33%] +191s players 284/3096
+players: 292/3096 (9%) · 2.2 fps · elapsed 2:15 · ETA 21:39
+[00:43:23] [  33%] +193s players 292/3096
+players: 300/3096 (10%) · 2.2 fps · elapsed 2:17 · ETA 21:21
+[00:43:25] [  33%] +195s players 300/3096
+players: 308/3096 (10%) · 2.2 fps · elapsed 2:19 · ETA 21:04
+[00:43:27] [  33%] +197s players 308/3096
+players: 316/3096 (10%) · 2.2 fps · elapsed 2:21 · ETA 20:48
+[00:43:29] [  33%] +200s players 316/3096
+players: 324/3096 (10%) · 2.2 fps · elapsed 2:24 · ETA 20:33
+[00:43:32] [  33%] +202s players 324/3096
+players: 332/3096 (11%) · 2.3 fps · elapsed 2:26 · ETA 20:17
+[00:43:34] [  33%] +204s players 332/3096
+players: 340/3096 (11%) · 2.3 fps · elapsed 2:28 · ETA 20:02
+[00:43:36] [  33%] +206s players 340/3096
+players: 348/3096 (11%) · 2.3 fps · elapsed 2:30 · ETA 19:48
+[00:43:38] [  33%] +208s players 348/3096
+players: 356/3096 (11%) · 2.3 fps · elapsed 2:32 · ETA 19:34
+[00:43:40] [  33%] +210s players 356/3096
+players: 364/3096 (12%) · 2.4 fps · elapsed 2:34 · ETA 19:20
+[00:43:42] [  34%] +212s players 364/3096
+players: 372/3096 (12%) · 2.4 fps · elapsed 2:36 · ETA 19:08
+[00:43:44] [  34%] +214s players 372/3096
+players: 380/3096 (12%) · 2.4 fps · elapsed 2:38 · ETA 18:55
+[00:43:46] [  34%] +216s players 380/3096
+players: 388/3096 (13%) · 2.4 fps · elapsed 2:41 · ETA 18:43
+[00:43:49] [  34%] +219s players 388/3096
+players: 396/3096 (13%) · 2.4 fps · elapsed 2:43 · ETA 18:32
+[00:43:51] [  34%] +221s players 396/3096
+players: 404/3096 (13%) · 2.4 fps · elapsed 2:45 · ETA 18:21
+[00:43:53] [  34%] +223s players 404/3096
+players: 412/3096 (13%) · 2.5 fps · elapsed 2:47 · ETA 18:10
+[00:43:55] [  34%] +225s players 412/3096
+players: 420/3096 (14%) · 2.5 fps · elapsed 2:49 · ETA 17:59
+[00:43:57] [  34%] +227s players 420/3096
+players: 428/3096 (14%) · 2.5 fps · elapsed 2:51 · ETA 17:49
+[00:43:59] [  34%] +229s players 428/3096
+players: 436/3096 (14%) · 2.5 fps · elapsed 2:53 · ETA 17:40
+[00:44:01] [  34%] +231s players 436/3096
+players: 444/3096 (14%) · 2.5 fps · elapsed 2:55 · ETA 17:30
+[00:44:03] [  34%] +233s players 444/3096
+players: 452/3096 (15%) · 2.5 fps · elapsed 2:58 · ETA 17:21
+[00:44:06] [  34%] +236s players 452/3096
+players: 460/3096 (15%) · 2.6 fps · elapsed 3:00 · ETA 17:12
+[00:44:08] [  34%] +238s players 460/3096
+players: 468/3096 (15%) · 2.6 fps · elapsed 3:02 · ETA 17:04
+[00:44:10] [  35%] +240s players 468/3096
+players: 476/3096 (15%) · 2.6 fps · elapsed 3:04 · ETA 16:56
+[00:44:12] [  35%] +242s players 476/3096
+players: 484/3096 (16%) · 2.6 fps · elapsed 3:06 · ETA 16:47
+[00:44:14] [  35%] +244s players 484/3096
+players: 492/3096 (16%) · 2.6 fps · elapsed 3:08 · ETA 16:39
+[00:44:16] [  35%] +246s players 492/3096
+players: 500/3096 (16%) · 2.6 fps · elapsed 3:11 · ETA 16:31
+[00:44:19] [  35%] +249s players 500/3096
+players: 508/3096 (16%) · 2.6 fps · elapsed 3:13 · ETA 16:24
+[00:44:21] [  35%] +251s players 508/3096
+players: 516/3096 (17%) · 2.6 fps · elapsed 3:15 · ETA 16:16
+[00:44:23] [  35%] +253s players 516/3096
+players: 524/3096 (17%) · 2.7 fps · elapsed 3:17 · ETA 16:09
+[00:44:25] [  35%] +255s players 524/3096
+players: 532/3096 (17%) · 2.7 fps · elapsed 3:19 · ETA 16:02
+[00:44:27] [  35%] +257s players 532/3096
+players: 540/3096 (17%) · 2.7 fps · elapsed 3:21 · ETA 15:55
+[00:44:29] [  35%] +259s players 540/3096
+players: 548/3096 (18%) · 2.7 fps · elapsed 3:23 · ETA 15:48
+[00:44:32] [  35%] +262s players 548/3096
+players: 556/3096 (18%) · 2.7 fps · elapsed 3:26 · ETA 15:42
+[00:44:34] [  35%] +264s players 556/3096
+players: 564/3096 (18%) · 2.7 fps · elapsed 3:28 · ETA 15:35
+[00:44:36] [  35%] +266s players 564/3096
+players: 572/3096 (18%) · 2.7 fps · elapsed 3:30 · ETA 15:29
+[00:44:38] [  36%] +268s players 572/3096
+players: 580/3096 (19%) · 2.7 fps · elapsed 3:32 · ETA 15:23
+[00:44:40] [  36%] +270s players 580/3096
+players: 588/3096 (19%) · 2.7 fps · elapsed 3:35 · ETA 15:17
+[00:44:43] [  36%] +273s players 588/3096
+players: 596/3096 (19%) · 2.7 fps · elapsed 3:37 · ETA 15:11
+[00:44:45] [  36%] +275s players 596/3096
+players: 604/3096 (20%) · 2.8 fps · elapsed 3:39 · ETA 15:05
+[00:44:47] [  36%] +277s players 604/3096
+players: 612/3096 (20%) · 2.8 fps · elapsed 3:41 · ETA 14:59
+[00:44:49] [  36%] +279s players 612/3096
+players: 620/3096 (20%) · 2.8 fps · elapsed 3:43 · ETA 14:53
+[00:44:51] [  36%] +281s players 620/3096
+players: 628/3096 (20%) · 2.8 fps · elapsed 3:46 · ETA 14:48
+[00:44:54] [  36%] +284s players 628/3096
+players: 636/3096 (21%) · 2.8 fps · elapsed 3:48 · ETA 14:42
+[00:44:56] [  36%] +286s players 636/3096
+players: 644/3096 (21%) · 2.8 fps · elapsed 3:50 · ETA 14:37
+[00:44:58] [  36%] +288s players 644/3096
+players: 652/3096 (21%) · 2.8 fps · elapsed 3:52 · ETA 14:32
+[00:45:00] [  36%] +290s players 652/3096
+players: 660/3096 (21%) · 2.8 fps · elapsed 3:54 · ETA 14:26
+[00:45:02] [  36%] +292s players 660/3096
+players: 668/3096 (22%) · 2.8 fps · elapsed 3:57 · ETA 14:21
+[00:45:05] [  36%] +295s players 668/3096
+players: 676/3096 (22%) · 2.8 fps · elapsed 3:59 · ETA 14:16
+[00:45:07] [  37%] +297s players 676/3096
+players: 684/3096 (22%) · 2.8 fps · elapsed 4:01 · ETA 14:12
+[00:45:09] [  37%] +299s players 684/3096
+players: 692/3096 (22%) · 2.8 fps · elapsed 4:03 · ETA 14:07
+[00:45:11] [  37%] +301s players 692/3096
+players: 700/3096 (23%) · 2.8 fps · elapsed 4:06 · ETA 14:02
+[00:45:14] [  37%] +304s players 700/3096
+players: 708/3096 (23%) · 2.9 fps · elapsed 4:08 · ETA 13:57
+[00:45:16] [  37%] +306s players 708/3096
+players: 716/3096 (23%) · 2.9 fps · elapsed 4:10 · ETA 13:52
+[00:45:18] [  37%] +308s players 716/3096
+players: 724/3096 (23%) · 2.9 fps · elapsed 4:12 · ETA 13:48
+[00:45:20] [  37%] +310s players 724/3096
+players: 732/3096 (24%) · 2.9 fps · elapsed 4:15 · ETA 13:43
+[00:45:23] [  37%] +313s players 732/3096
+players: 740/3096 (24%) · 2.9 fps · elapsed 4:17 · ETA 13:39
+[00:45:25] [  37%] +315s players 740/3096
+players: 748/3096 (24%) · 2.9 fps · elapsed 4:19 · ETA 13:34
+[00:45:27] [  37%] +317s players 748/3096
+players: 756/3096 (24%) · 2.9 fps · elapsed 4:21 · ETA 13:30
+[00:45:29] [  37%] +319s players 756/3096
+players: 764/3096 (25%) · 2.9 fps · elapsed 4:23 · ETA 13:25
+[00:45:32] [  37%] +322s players 764/3096
+players: 772/3096 (25%) · 2.9 fps · elapsed 4:26 · ETA 13:21
+[00:45:34] [  37%] +324s players 772/3096
+players: 780/3096 (25%) · 2.9 fps · elapsed 4:28 · ETA 13:17
+[00:45:36] [  38%] +326s players 780/3096
+players: 788/3096 (25%) · 2.9 fps · elapsed 4:30 · ETA 13:12
+[00:45:38] [  38%] +328s players 788/3096
+players: 796/3096 (26%) · 2.9 fps · elapsed 4:32 · ETA 13:08
+[00:45:40] [  38%] +330s players 796/3096
+players: 804/3096 (26%) · 2.9 fps · elapsed 4:35 · ETA 13:04
+[00:45:43] [  38%] +333s players 804/3096
+players: 812/3096 (26%) · 2.9 fps · elapsed 4:37 · ETA 13:00
+[00:45:45] [  38%] +335s players 812/3096
+players: 820/3096 (26%) · 2.9 fps · elapsed 4:39 · ETA 12:56
+[00:45:47] [  38%] +337s players 820/3096
+players: 828/3096 (27%) · 2.9 fps · elapsed 4:41 · ETA 12:52
+[00:45:49] [  38%] +339s players 828/3096
+players: 836/3096 (27%) · 2.9 fps · elapsed 4:44 · ETA 12:48
+[00:45:52] [  38%] +342s players 836/3096
+players: 844/3096 (27%) · 2.9 fps · elapsed 4:46 · ETA 12:44
+[00:45:54] [  38%] +344s players 844/3096
+players: 852/3096 (28%) · 3.0 fps · elapsed 4:48 · ETA 12:40
+[00:45:56] [  38%] +346s players 852/3096
+players: 860/3096 (28%) · 3.0 fps · elapsed 4:50 · ETA 12:36
+[00:45:58] [  38%] +348s players 860/3096
+players: 868/3096 (28%) · 3.0 fps · elapsed 4:53 · ETA 12:32
+[00:46:01] [  38%] +351s players 868/3096
+players: 876/3096 (28%) · 3.0 fps · elapsed 4:55 · ETA 12:28
+[00:46:03] [  38%] +353s players 876/3096
+players: 884/3096 (29%) · 3.0 fps · elapsed 4:57 · ETA 12:24
+[00:46:05] [  39%] +355s players 884/3096
+players: 892/3096 (29%) · 3.0 fps · elapsed 4:59 · ETA 12:20
+[00:46:07] [  39%] +357s players 892/3096
+players: 900/3096 (29%) · 3.0 fps · elapsed 5:02 · ETA 12:17
+[00:46:10] [  39%] +360s players 900/3096
+players: 908/3096 (29%) · 3.0 fps · elapsed 5:04 · ETA 12:13
+[00:46:12] [  39%] +362s players 908/3096
+players: 916/3096 (30%) · 3.0 fps · elapsed 5:06 · ETA 12:09
+[00:46:14] [  39%] +364s players 916/3096
+players: 924/3096 (30%) · 3.0 fps · elapsed 5:08 · ETA 12:05
+[00:46:16] [  39%] +366s players 924/3096
+players: 932/3096 (30%) · 3.0 fps · elapsed 5:11 · ETA 12:02
+[00:46:19] [  39%] +369s players 932/3096
+players: 940/3096 (30%) · 3.0 fps · elapsed 5:13 · ETA 11:58
+[00:46:21] [  39%] +371s players 940/3096
+players: 948/3096 (31%) · 3.0 fps · elapsed 5:15 · ETA 11:55
+[00:46:23] [  39%] +373s players 948/3096
+players: 956/3096 (31%) · 3.0 fps · elapsed 5:17 · ETA 11:51
+[00:46:25] [  39%] +375s players 956/3096
+players: 964/3096 (31%) · 3.0 fps · elapsed 5:20 · ETA 11:47
+[00:46:28] [  39%] +378s players 964/3096
+players: 972/3096 (31%) · 3.0 fps · elapsed 5:22 · ETA 11:44
+[00:46:30] [  39%] +380s players 972/3096
+players: 980/3096 (32%) · 3.0 fps · elapsed 5:24 · ETA 11:40
+[00:46:32] [  39%] +382s players 980/3096
+players: 988/3096 (32%) · 3.0 fps · elapsed 5:26 · ETA 11:37
+[00:46:34] [  40%] +384s players 988/3096
+players: 996/3096 (32%) · 3.0 fps · elapsed 5:29 · ETA 11:33
+[00:46:37] [  40%] +387s players 996/3096
+players: 1004/3096 (32%) · 3.0 fps · elapsed 5:31 · ETA 11:30
+[00:46:39] [  40%] +389s players 1004/3096
+players: 1012/3096 (33%) · 3.0 fps · elapsed 5:33 · ETA 11:26
+[00:46:41] [  40%] +391s players 1012/3096
+players: 1020/3096 (33%) · 3.0 fps · elapsed 5:35 · ETA 11:23
+[00:46:43] [  40%] +393s players 1020/3096
+players: 1028/3096 (33%) · 3.0 fps · elapsed 5:38 · ETA 11:19
+[00:46:46] [  40%] +396s players 1028/3096
+players: 1036/3096 (33%) · 3.0 fps · elapsed 5:40 · ETA 11:16
+[00:46:48] [  40%] +398s players 1036/3096
+players: 1044/3096 (34%) · 3.0 fps · elapsed 5:42 · ETA 11:13
+[00:46:50] [  40%] +400s players 1044/3096
+players: 1052/3096 (34%) · 3.1 fps · elapsed 5:44 · ETA 11:09
+[00:46:52] [  40%] +402s players 1052/3096
+players: 1060/3096 (34%) · 3.1 fps · elapsed 5:47 · ETA 11:06
+[00:46:55] [  40%] +405s players 1060/3096
+players: 1068/3096 (34%) · 3.1 fps · elapsed 5:49 · ETA 11:03
+[00:46:57] [  40%] +407s players 1068/3096
+players: 1076/3096 (35%) · 3.1 fps · elapsed 5:51 · ETA 10:59
+[00:46:59] [  40%] +409s players 1076/3096
+players: 1084/3096 (35%) · 3.1 fps · elapsed 5:53 · ETA 10:56
+[00:47:01] [  41%] +411s players 1084/3096
+players: 1092/3096 (35%) · 3.1 fps · elapsed 5:56 · ETA 10:53
+[00:47:04] [  41%] +414s players 1092/3096
+players: 1100/3096 (36%) · 3.1 fps · elapsed 5:58 · ETA 10:50
+[00:47:06] [  41%] +416s players 1100/3096
+players: 1108/3096 (36%) · 3.1 fps · elapsed 6:00 · ETA 10:46
+[00:47:08] [  41%] +418s players 1108/3096
+players: 1116/3096 (36%) · 3.1 fps · elapsed 6:02 · ETA 10:43
+[00:47:10] [  41%] +420s players 1116/3096
+players: 1124/3096 (36%) · 3.1 fps · elapsed 6:04 · ETA 10:40
+[00:47:13] [  41%] +423s players 1124/3096
+players: 1132/3096 (37%) · 3.1 fps · elapsed 6:07 · ETA 10:37
+[00:47:15] [  41%] +425s players 1132/3096
+players: 1140/3096 (37%) · 3.1 fps · elapsed 6:09 · ETA 10:33
+[00:47:17] [  41%] +427s players 1140/3096
+players: 1148/3096 (37%) · 3.1 fps · elapsed 6:11 · ETA 10:30
+[00:47:19] [  41%] +429s players 1148/3096
+players: 1156/3096 (37%) · 3.1 fps · elapsed 6:13 · ETA 10:27
+[00:47:22] [  41%] +432s players 1156/3096
+players: 1164/3096 (38%) · 3.1 fps · elapsed 6:16 · ETA 10:24
+[00:47:24] [  41%] +434s players 1164/3096
+players: 1172/3096 (38%) · 3.1 fps · elapsed 6:18 · ETA 10:21
+[00:47:26] [  41%] +436s players 1172/3096
+players: 1180/3096 (38%) · 3.1 fps · elapsed 6:20 · ETA 10:18
+[00:47:28] [  41%] +438s players 1180/3096
+players: 1188/3096 (38%) · 3.1 fps · elapsed 6:22 · ETA 10:15
+[00:47:31] [  42%] +441s players 1188/3096
+players: 1196/3096 (39%) · 3.1 fps · elapsed 6:25 · ETA 10:11
+[00:47:33] [  42%] +443s players 1196/3096
+players: 1204/3096 (39%) · 3.1 fps · elapsed 6:27 · ETA 10:08
+[00:47:35] [  42%] +445s players 1204/3096
+players: 1212/3096 (39%) · 3.1 fps · elapsed 6:29 · ETA 10:05
+[00:47:37] [  42%] +447s players 1212/3096
+players: 1220/3096 (39%) · 3.1 fps · elapsed 6:31 · ETA 10:02
+[00:47:40] [  42%] +450s players 1220/3096
+players: 1228/3096 (40%) · 3.1 fps · elapsed 6:34 · ETA 9:59
+[00:47:42] [  42%] +452s players 1228/3096
+players: 1236/3096 (40%) · 3.1 fps · elapsed 6:36 · ETA 9:56
+[00:47:44] [  42%] +454s players 1236/3096
+players: 1244/3096 (40%) · 3.1 fps · elapsed 6:38 · ETA 9:53
+[00:47:46] [  42%] +456s players 1244/3096
+players: 1252/3096 (40%) · 3.1 fps · elapsed 6:41 · ETA 9:50
+[00:47:49] [  42%] +459s players 1252/3096
+players: 1260/3096 (41%) · 3.1 fps · elapsed 6:43 · ETA 9:47
+[00:47:51] [  42%] +461s players 1260/3096
+players: 1268/3096 (41%) · 3.1 fps · elapsed 6:45 · ETA 9:44
+[00:47:53] [  42%] +463s players 1268/3096
+players: 1276/3096 (41%) · 3.1 fps · elapsed 6:47 · ETA 9:41
+[00:47:55] [  42%] +465s players 1276/3096
+players: 1284/3096 (41%) · 3.1 fps · elapsed 6:50 · ETA 9:38
+[00:47:58] [  42%] +468s players 1284/3096
+players: 1292/3096 (42%) · 3.1 fps · elapsed 6:52 · ETA 9:35
+[00:48:00] [  43%] +470s players 1292/3096
+players: 1300/3096 (42%) · 3.1 fps · elapsed 6:54 · ETA 9:32
+[00:48:02] [  43%] +472s players 1300/3096
+players: 1308/3096 (42%) · 3.1 fps · elapsed 6:56 · ETA 9:29
+[00:48:04] [  43%] +474s players 1308/3096
+players: 1316/3096 (43%) · 3.1 fps · elapsed 6:59 · ETA 9:26
+[00:48:07] [  43%] +477s players 1316/3096
+players: 1324/3096 (43%) · 3.1 fps · elapsed 7:01 · ETA 9:23
+[00:48:09] [  43%] +479s players 1324/3096
+players: 1332/3096 (43%) · 3.1 fps · elapsed 7:03 · ETA 9:20
+[00:48:11] [  43%] +481s players 1332/3096
+players: 1340/3096 (43%) · 3.1 fps · elapsed 7:05 · ETA 9:18
+[00:48:13] [  43%] +483s players 1340/3096
+players: 1348/3096 (44%) · 3.1 fps · elapsed 7:08 · ETA 9:15
+[00:48:16] [  43%] +486s players 1348/3096
+players: 1356/3096 (44%) · 3.2 fps · elapsed 7:10 · ETA 9:12
+[00:48:18] [  43%] +488s players 1356/3096
+players: 1364/3096 (44%) · 3.2 fps · elapsed 7:12 · ETA 9:09
+[00:48:20] [  43%] +490s players 1364/3096
+players: 1372/3096 (44%) · 3.2 fps · elapsed 7:14 · ETA 9:06
+[00:48:22] [  43%] +492s players 1372/3096
+players: 1380/3096 (45%) · 3.2 fps · elapsed 7:17 · ETA 9:03
+[00:48:25] [  43%] +495s players 1380/3096
+players: 1388/3096 (45%) · 3.2 fps · elapsed 7:19 · ETA 9:00
+[00:48:27] [  43%] +497s players 1388/3096
+players: 1396/3096 (45%) · 3.2 fps · elapsed 7:21 · ETA 8:57
+[00:48:29] [  44%] +499s players 1396/3096
+players: 1404/3096 (45%) · 3.2 fps · elapsed 7:23 · ETA 8:54
+[00:48:31] [  44%] +501s players 1404/3096
+players: 1412/3096 (46%) · 3.2 fps · elapsed 7:26 · ETA 8:52
+[00:48:34] [  44%] +504s players 1412/3096
+players: 1420/3096 (46%) · 3.2 fps · elapsed 7:28 · ETA 8:49
+[00:48:36] [  44%] +506s players 1420/3096
+players: 1427/3096 (46%) · 3.2 fps · elapsed 7:30 · ETA 8:46
+[00:48:38] [  44%] +508s players 1427/3096
+players: 1435/3096 (46%) · 3.2 fps · elapsed 7:32 · ETA 8:43
+[00:48:40] [  44%] +510s players 1435/3096
+players: 1442/3096 (47%) · 3.2 fps · elapsed 7:34 · ETA 8:41
+[00:48:42] [  44%] +512s players 1442/3096
+players: 1449/3096 (47%) · 3.2 fps · elapsed 7:36 · ETA 8:39
+[00:48:44] [  44%] +514s players 1449/3096
+players: 1457/3096 (47%) · 3.2 fps · elapsed 7:39 · ETA 8:36
+[00:48:47] [  44%] +517s players 1457/3096
+players: 1464/3096 (47%) · 3.2 fps · elapsed 7:41 · ETA 8:33
+[00:48:49] [  44%] +519s players 1464/3096
+players: 1471/3096 (48%) · 3.2 fps · elapsed 7:43 · ETA 8:31
+[00:48:51] [  44%] +521s players 1471/3096
+players: 1478/3096 (48%) · 3.2 fps · elapsed 7:45 · ETA 8:29
+[00:48:53] [  44%] +523s players 1478/3096
+players: 1485/3096 (48%) · 3.2 fps · elapsed 7:47 · ETA 8:26
+[00:48:55] [  44%] +525s players 1485/3096
+players: 1493/3096 (48%) · 3.2 fps · elapsed 7:49 · ETA 8:24
+[00:48:57] [  44%] +527s players 1493/3096
+players: 1501/3096 (48%) · 3.2 fps · elapsed 7:51 · ETA 8:21
+[00:48:59] [  45%] +529s players 1501/3096
+players: 1508/3096 (49%) · 3.2 fps · elapsed 7:53 · ETA 8:18
+[00:49:01] [  45%] +531s players 1508/3096
+players: 1515/3096 (49%) · 3.2 fps · elapsed 7:55 · ETA 8:16
+[00:49:03] [  45%] +533s players 1515/3096
+players: 1522/3096 (49%) · 3.2 fps · elapsed 7:57 · ETA 8:14
+[00:49:06] [  45%] +536s players 1522/3096
+players: 1530/3096 (49%) · 3.2 fps · elapsed 8:00 · ETA 8:11
+[00:49:08] [  45%] +538s players 1530/3096
+players: 1538/3096 (50%) · 3.2 fps · elapsed 8:02 · ETA 8:08
+[00:49:10] [  45%] +540s players 1538/3096
+players: 1546/3096 (50%) · 3.2 fps · elapsed 8:04 · ETA 8:06
+[00:49:12] [  45%] +542s players 1546/3096
+players: 1554/3096 (50%) · 3.2 fps · elapsed 8:07 · ETA 8:03
+[00:49:15] [  45%] +545s players 1554/3096
+players: 1562/3096 (50%) · 3.2 fps · elapsed 8:09 · ETA 8:00
+[00:49:17] [  45%] +547s players 1562/3096
+players: 1570/3096 (51%) · 3.2 fps · elapsed 8:11 · ETA 7:57
+[00:49:19] [  45%] +549s players 1570/3096
+players: 1578/3096 (51%) · 3.2 fps · elapsed 8:13 · ETA 7:55
+[00:49:21] [  45%] +551s players 1578/3096
+players: 1585/3096 (51%) · 3.2 fps · elapsed 8:15 · ETA 7:52
+[00:49:23] [  45%] +553s players 1585/3096
+players: 1593/3096 (51%) · 3.2 fps · elapsed 8:18 · ETA 7:49
+[00:49:26] [  45%] +556s players 1593/3096
+players: 1601/3096 (52%) · 3.2 fps · elapsed 8:20 · ETA 7:47
+[00:49:28] [  46%] +558s players 1601/3096
+players: 1609/3096 (52%) · 3.2 fps · elapsed 8:22 · ETA 7:44
+[00:49:30] [  46%] +560s players 1609/3096
+players: 1617/3096 (52%) · 3.2 fps · elapsed 8:24 · ETA 7:41
+[00:49:32] [  46%] +562s players 1617/3096
+players: 1625/3096 (52%) · 3.2 fps · elapsed 8:27 · ETA 7:39
+[00:49:35] [  46%] +565s players 1625/3096
+players: 1633/3096 (53%) · 3.2 fps · elapsed 8:29 · ETA 7:36
+[00:49:37] [  46%] +567s players 1633/3096
+players: 1641/3096 (53%) · 3.2 fps · elapsed 8:31 · ETA 7:33
+[00:49:39] [  46%] +569s players 1641/3096
+players: 1649/3096 (53%) · 3.2 fps · elapsed 8:33 · ETA 7:30
+[00:49:41] [  46%] +571s players 1649/3096
+players: 1657/3096 (54%) · 3.2 fps · elapsed 8:36 · ETA 7:28
+[00:49:44] [  46%] +574s players 1657/3096
+players: 1665/3096 (54%) · 3.2 fps · elapsed 8:38 · ETA 7:25
+[00:49:46] [  46%] +576s players 1665/3096
+players: 1673/3096 (54%) · 3.2 fps · elapsed 8:40 · ETA 7:22
+[00:49:48] [  46%] +578s players 1673/3096
+players: 1680/3096 (54%) · 3.2 fps · elapsed 8:42 · ETA 7:20
+[00:49:50] [  46%] +580s players 1680/3096
+players: 1687/3096 (54%) · 3.2 fps · elapsed 8:44 · ETA 7:18
+[00:49:52] [  46%] +582s players 1687/3096
+players: 1694/3096 (55%) · 3.2 fps · elapsed 8:47 · ETA 7:16
+[00:49:55] [  46%] +585s players 1694/3096
+players: 1701/3096 (55%) · 3.2 fps · elapsed 8:49 · ETA 7:14
+[00:49:57] [  46%] +587s players 1701/3096
+players: 1708/3096 (55%) · 3.2 fps · elapsed 8:51 · ETA 7:11
+[00:49:59] [  47%] +589s players 1708/3096
+players: 1715/3096 (55%) · 3.2 fps · elapsed 8:53 · ETA 7:09
+[00:50:01] [  47%] +591s players 1715/3096
+players: 1722/3096 (56%) · 3.2 fps · elapsed 8:56 · ETA 7:07
+[00:50:04] [  47%] +594s players 1722/3096
+players: 1729/3096 (56%) · 3.2 fps · elapsed 8:58 · ETA 7:05
+[00:50:06] [  47%] +596s players 1729/3096
+players: 1736/3096 (56%) · 3.2 fps · elapsed 9:00 · ETA 7:03
+[00:50:08] [  47%] +598s players 1736/3096
+players: 1743/3096 (56%) · 3.2 fps · elapsed 9:02 · ETA 7:01
+[00:50:10] [  47%] +600s players 1743/3096
+players: 1750/3096 (57%) · 3.2 fps · elapsed 9:05 · ETA 6:59
+[00:50:13] [  47%] +603s players 1750/3096
+players: 1757/3096 (57%) · 3.2 fps · elapsed 9:07 · ETA 6:57
+[00:50:15] [  47%] +605s players 1757/3096
+players: 1764/3096 (57%) · 3.2 fps · elapsed 9:09 · ETA 6:54
+[00:50:17] [  47%] +607s players 1764/3096
+players: 1771/3096 (57%) · 3.2 fps · elapsed 9:11 · ETA 6:52
+[00:50:19] [  47%] +609s players 1771/3096
+players: 1778/3096 (57%) · 3.2 fps · elapsed 9:14 · ETA 6:50
+[00:50:22] [  47%] +612s players 1778/3096
+players: 1785/3096 (58%) · 3.2 fps · elapsed 9:16 · ETA 6:48
+[00:50:24] [  47%] +614s players 1785/3096
+players: 1792/3096 (58%) · 3.2 fps · elapsed 9:18 · ETA 6:46
+[00:50:26] [  47%] +616s players 1792/3096
+players: 1799/3096 (58%) · 3.2 fps · elapsed 9:20 · ETA 6:44
+[00:50:28] [  47%] +618s players 1799/3096
+players: 1806/3096 (58%) · 3.2 fps · elapsed 9:22 · ETA 6:42
+[00:50:31] [  48%] +621s players 1806/3096
+players: 1813/3096 (59%) · 3.2 fps · elapsed 9:25 · ETA 6:40
+[00:50:33] [  48%] +623s players 1813/3096
+players: 1820/3096 (59%) · 3.2 fps · elapsed 9:27 · ETA 6:37
+[00:50:35] [  48%] +625s players 1820/3096
+players: 1827/3096 (59%) · 3.2 fps · elapsed 9:29 · ETA 6:35
+[00:50:37] [  48%] +627s players 1827/3096
+players: 1834/3096 (59%) · 3.2 fps · elapsed 9:31 · ETA 6:33
+[00:50:39] [  48%] +629s players 1834/3096
+players: 1841/3096 (59%) · 3.2 fps · elapsed 9:33 · ETA 6:31
+[00:50:41] [  48%] +631s players 1841/3096
+players: 1848/3096 (60%) · 3.2 fps · elapsed 9:36 · ETA 6:29
+[00:50:44] [  48%] +634s players 1848/3096
+players: 1855/3096 (60%) · 3.2 fps · elapsed 9:38 · ETA 6:27
+[00:50:46] [  48%] +636s players 1855/3096
+players: 1862/3096 (60%) · 3.2 fps · elapsed 9:40 · ETA 6:24
+[00:50:48] [  48%] +638s players 1862/3096
+players: 1869/3096 (60%) · 3.2 fps · elapsed 9:42 · ETA 6:22
+[00:50:50] [  48%] +640s players 1869/3096
+players: 1876/3096 (61%) · 3.2 fps · elapsed 9:44 · ETA 6:20
+[00:50:53] [  48%] +643s players 1876/3096
+players: 1883/3096 (61%) · 3.2 fps · elapsed 9:47 · ETA 6:18
+[00:50:55] [  48%] +645s players 1883/3096
+players: 1890/3096 (61%) · 3.2 fps · elapsed 9:49 · ETA 6:15
+[00:50:57] [  48%] +647s players 1890/3096
+players: 1897/3096 (61%) · 3.2 fps · elapsed 9:51 · ETA 6:13
+[00:50:59] [  48%] +649s players 1897/3096
+players: 1905/3096 (62%) · 3.2 fps · elapsed 9:53 · ETA 6:10
+[00:51:01] [  48%] +651s players 1905/3096
+players: 1912/3096 (62%) · 3.2 fps · elapsed 9:55 · ETA 6:08
+[00:51:03] [  49%] +653s players 1912/3096
+players: 1919/3096 (62%) · 3.2 fps · elapsed 9:57 · ETA 6:06
+[00:51:05] [  49%] +655s players 1919/3096
+players: 1926/3096 (62%) · 3.2 fps · elapsed 9:59 · ETA 6:04
+[00:51:07] [  49%] +657s players 1926/3096
+players: 1933/3096 (62%) · 3.2 fps · elapsed 10:01 · ETA 6:01
+[00:51:09] [  49%] +659s players 1933/3096
+players: 1940/3096 (63%) · 3.2 fps · elapsed 10:03 · ETA 5:59
+[00:51:11] [  49%] +661s players 1940/3096
+players: 1947/3096 (63%) · 3.2 fps · elapsed 10:05 · ETA 5:57
+[00:51:13] [  49%] +663s players 1947/3096
+players: 1954/3096 (63%) · 3.2 fps · elapsed 10:07 · ETA 5:55
+[00:51:15] [  49%] +665s players 1954/3096
+players: 1961/3096 (63%) · 3.2 fps · elapsed 10:09 · ETA 5:52
+[00:51:17] [  49%] +667s players 1961/3096
+players: 1968/3096 (64%) · 3.2 fps · elapsed 10:11 · ETA 5:50
+[00:51:19] [  49%] +669s players 1968/3096
+players: 1975/3096 (64%) · 3.2 fps · elapsed 10:13 · ETA 5:48
+[00:51:21] [  49%] +671s players 1975/3096
+players: 1982/3096 (64%) · 3.2 fps · elapsed 10:15 · ETA 5:46
+[00:51:23] [  49%] +673s players 1982/3096
+players: 1989/3096 (64%) · 3.2 fps · elapsed 10:17 · ETA 5:43
+[00:51:25] [  49%] +675s players 1989/3096
+players: 1996/3096 (64%) · 3.2 fps · elapsed 10:20 · ETA 5:41
+[00:51:28] [  49%] +678s players 1996/3096
+players: 2003/3096 (65%) · 3.2 fps · elapsed 10:22 · ETA 5:39
+[00:51:30] [  49%] +680s players 2003/3096
+players: 2010/3096 (65%) · 3.2 fps · elapsed 10:24 · ETA 5:37
+[00:51:32] [  49%] +682s players 2010/3096
+players: 2017/3096 (65%) · 3.2 fps · elapsed 10:26 · ETA 5:35
+[00:51:34] [  50%] +684s players 2017/3096
+players: 2023/3096 (65%) · 3.2 fps · elapsed 10:28 · ETA 5:33
+[00:51:36] [  50%] +686s players 2023/3096
+players: 2030/3096 (66%) · 3.2 fps · elapsed 10:30 · ETA 5:31
+[00:51:38] [  50%] +688s players 2030/3096
+players: 2037/3096 (66%) · 3.2 fps · elapsed 10:33 · ETA 5:29
+[00:51:41] [  50%] +691s players 2037/3096
+players: 2044/3096 (66%) · 3.2 fps · elapsed 10:35 · ETA 5:26
+[00:51:43] [  50%] +693s players 2044/3096
+players: 2051/3096 (66%) · 3.2 fps · elapsed 10:37 · ETA 5:24
+[00:51:45] [  50%] +695s players 2051/3096
+players: 2058/3096 (66%) · 3.2 fps · elapsed 10:39 · ETA 5:22
+[00:51:47] [  50%] +697s players 2058/3096
+players: 2065/3096 (67%) · 3.2 fps · elapsed 10:41 · ETA 5:20
+[00:51:49] [  50%] +699s players 2065/3096
+players: 2072/3096 (67%) · 3.2 fps · elapsed 10:43 · ETA 5:17
+[00:51:51] [  50%] +701s players 2072/3096
+players: 2079/3096 (67%) · 3.2 fps · elapsed 10:45 · ETA 5:15
+[00:51:53] [  50%] +703s players 2079/3096
+players: 2086/3096 (67%) · 3.2 fps · elapsed 10:47 · ETA 5:13
+[00:51:55] [  50%] +705s players 2086/3096
+players: 2093/3096 (68%) · 3.2 fps · elapsed 10:49 · ETA 5:11
+[00:51:57] [  50%] +707s players 2093/3096
+players: 2100/3096 (68%) · 3.2 fps · elapsed 10:51 · ETA 5:09
+[00:51:59] [  50%] +709s players 2100/3096
+players: 2107/3096 (68%) · 3.2 fps · elapsed 10:53 · ETA 5:06
+[00:52:01] [  50%] +711s players 2107/3096
+players: 2114/3096 (68%) · 3.2 fps · elapsed 10:55 · ETA 5:04
+[00:52:03] [  50%] +713s players 2114/3096
+players: 2121/3096 (69%) · 3.2 fps · elapsed 10:57 · ETA 5:02
+[00:52:05] [  51%] +715s players 2121/3096
+players: 2128/3096 (69%) · 3.2 fps · elapsed 10:59 · ETA 5:00
+[00:52:07] [  51%] +717s players 2128/3096
+players: 2135/3096 (69%) · 3.2 fps · elapsed 11:01 · ETA 4:57
+[00:52:09] [  51%] +719s players 2135/3096
+players: 2142/3096 (69%) · 3.2 fps · elapsed 11:03 · ETA 4:55
+[00:52:11] [  51%] +721s players 2142/3096
+players: 2149/3096 (69%) · 3.2 fps · elapsed 11:05 · ETA 4:53
+[00:52:13] [  51%] +723s players 2149/3096
+players: 2156/3096 (70%) · 3.2 fps · elapsed 11:07 · ETA 4:51
+[00:52:15] [  51%] +725s players 2156/3096
+players: 2164/3096 (70%) · 3.2 fps · elapsed 11:10 · ETA 4:48
+[00:52:18] [  51%] +728s players 2164/3096
+players: 2171/3096 (70%) · 3.2 fps · elapsed 11:12 · ETA 4:46
+[00:52:20] [  51%] +730s players 2171/3096
+players: 2178/3096 (70%) · 3.2 fps · elapsed 11:14 · ETA 4:44
+[00:52:22] [  51%] +732s players 2178/3096
+players: 2185/3096 (71%) · 3.2 fps · elapsed 11:16 · ETA 4:41
+[00:52:24] [  51%] +734s players 2185/3096
+players: 2193/3096 (71%) · 3.2 fps · elapsed 11:18 · ETA 4:39
+[00:52:26] [  51%] +736s players 2193/3096
+players: 2200/3096 (71%) · 3.2 fps · elapsed 11:20 · ETA 4:37
+[00:52:28] [  51%] +738s players 2200/3096
+players: 2207/3096 (71%) · 3.2 fps · elapsed 11:22 · ETA 4:34
+[00:52:30] [  51%] +740s players 2207/3096
+players: 2214/3096 (72%) · 3.2 fps · elapsed 11:24 · ETA 4:32
+[00:52:32] [  51%] +742s players 2214/3096
+players: 2221/3096 (72%) · 3.2 fps · elapsed 11:26 · ETA 4:30
+[00:52:34] [  52%] +744s players 2221/3096
+players: 2229/3096 (72%) · 3.2 fps · elapsed 11:28 · ETA 4:27
+[00:52:36] [  52%] +746s players 2229/3096
+players: 2236/3096 (72%) · 3.2 fps · elapsed 11:30 · ETA 4:25
+[00:52:38] [  52%] +748s players 2236/3096
+players: 2243/3096 (72%) · 3.2 fps · elapsed 11:32 · ETA 4:23
+[00:52:40] [  52%] +750s players 2243/3096
+players: 2251/3096 (73%) · 3.2 fps · elapsed 11:34 · ETA 4:20
+[00:52:43] [  52%] +753s players 2251/3096
+players: 2258/3096 (73%) · 3.2 fps · elapsed 11:36 · ETA 4:18
+[00:52:45] [  52%] +755s players 2258/3096
+players: 2266/3096 (73%) · 3.2 fps · elapsed 11:39 · ETA 4:16
+[00:52:47] [  52%] +757s players 2266/3096
+players: 2274/3096 (73%) · 3.2 fps · elapsed 11:41 · ETA 4:13
+[00:52:49] [  52%] +759s players 2274/3096
+players: 2281/3096 (74%) · 3.2 fps · elapsed 11:43 · ETA 4:11
+[00:52:51] [  52%] +761s players 2281/3096
+players: 2288/3096 (74%) · 3.2 fps · elapsed 11:45 · ETA 4:09
+[00:52:53] [  52%] +763s players 2288/3096
+players: 2296/3096 (74%) · 3.2 fps · elapsed 11:47 · ETA 4:06
+[00:52:55] [  52%] +765s players 2296/3096
+players: 2304/3096 (74%) · 3.2 fps · elapsed 11:50 · ETA 4:04
+[00:52:58] [  52%] +768s players 2304/3096
+players: 2312/3096 (75%) · 3.2 fps · elapsed 11:52 · ETA 4:01
+[00:53:00] [  52%] +770s players 2312/3096
+players: 2319/3096 (75%) · 3.2 fps · elapsed 11:54 · ETA 3:59
+[00:53:02] [  52%] +772s players 2319/3096
+players: 2327/3096 (75%) · 3.2 fps · elapsed 11:56 · ETA 3:56
+[00:53:04] [  53%] +774s players 2327/3096
+players: 2335/3096 (75%) · 3.2 fps · elapsed 11:58 · ETA 3:54
+[00:53:07] [  53%] +777s players 2335/3096
+players: 2343/3096 (76%) · 3.2 fps · elapsed 12:01 · ETA 3:51
+[00:53:09] [  53%] +779s players 2343/3096
+players: 2351/3096 (76%) · 3.2 fps · elapsed 12:03 · ETA 3:49
+[00:53:11] [  53%] +781s players 2351/3096
+players: 2359/3096 (76%) · 3.3 fps · elapsed 12:05 · ETA 3:46
+[00:53:13] [  53%] +783s players 2359/3096
+players: 2367/3096 (76%) · 3.3 fps · elapsed 12:08 · ETA 3:44
+[00:53:16] [  53%] +786s players 2367/3096
+players: 2375/3096 (77%) · 3.3 fps · elapsed 12:10 · ETA 3:41
+[00:53:18] [  53%] +788s players 2375/3096
+players: 2383/3096 (77%) · 3.3 fps · elapsed 12:12 · ETA 3:39
+[00:53:20] [  53%] +790s players 2383/3096
+players: 2391/3096 (77%) · 3.3 fps · elapsed 12:14 · ETA 3:36
+[00:53:22] [  53%] +792s players 2391/3096
+players: 2399/3096 (77%) · 3.3 fps · elapsed 12:17 · ETA 3:34
+[00:53:25] [  53%] +795s players 2399/3096
+players: 2407/3096 (78%) · 3.3 fps · elapsed 12:19 · ETA 3:31
+[00:53:27] [  53%] +797s players 2407/3096
+players: 2415/3096 (78%) · 3.3 fps · elapsed 12:21 · ETA 3:29
+[00:53:29] [  53%] +799s players 2415/3096
+players: 2422/3096 (78%) · 3.3 fps · elapsed 12:23 · ETA 3:26
+[00:53:31] [  53%] +801s players 2422/3096
+players: 2429/3096 (78%) · 3.3 fps · elapsed 12:25 · ETA 3:24
+[00:53:33] [  54%] +803s players 2429/3096
+players: 2436/3096 (79%) · 3.3 fps · elapsed 12:27 · ETA 3:22
+[00:53:35] [  54%] +805s players 2436/3096
+players: 2444/3096 (79%) · 3.3 fps · elapsed 12:30 · ETA 3:20
+[00:53:38] [  54%] +808s players 2444/3096
+players: 2451/3096 (79%) · 3.3 fps · elapsed 12:32 · ETA 3:17
+[00:53:40] [  54%] +810s players 2451/3096
+players: 2459/3096 (79%) · 3.3 fps · elapsed 12:34 · ETA 3:15
+[00:53:42] [  54%] +812s players 2459/3096
+players: 2466/3096 (80%) · 3.3 fps · elapsed 12:36 · ETA 3:13
+[00:53:44] [  54%] +814s players 2466/3096
+players: 2474/3096 (80%) · 3.3 fps · elapsed 12:38 · ETA 3:10
+[00:53:46] [  54%] +816s players 2474/3096
+players: 2481/3096 (80%) · 3.3 fps · elapsed 12:40 · ETA 3:08
+[00:53:48] [  54%] +818s players 2481/3096
+players: 2489/3096 (80%) · 3.3 fps · elapsed 12:42 · ETA 3:06
+[00:53:50] [  54%] +820s players 2489/3096
+players: 2497/3096 (81%) · 3.3 fps · elapsed 12:45 · ETA 3:03
+[00:53:53] [  54%] +823s players 2497/3096
+players: 2505/3096 (81%) · 3.3 fps · elapsed 12:47 · ETA 3:01
+[00:53:55] [  54%] +825s players 2505/3096
+players: 2513/3096 (81%) · 3.3 fps · elapsed 12:49 · ETA 2:58
+[00:53:57] [  54%] +827s players 2513/3096
+players: 2520/3096 (81%) · 3.3 fps · elapsed 12:51 · ETA 2:56
+[00:53:59] [  54%] +829s players 2520/3096
+players: 2528/3096 (82%) · 3.3 fps · elapsed 12:53 · ETA 2:53
+[00:54:01] [  54%] +831s players 2528/3096
+players: 2535/3096 (82%) · 3.3 fps · elapsed 12:55 · ETA 2:51
+[00:54:03] [  55%] +834s players 2535/3096
+players: 2543/3096 (82%) · 3.3 fps · elapsed 12:58 · ETA 2:49
+[00:54:06] [  55%] +836s players 2543/3096
+players: 2550/3096 (82%) · 3.3 fps · elapsed 13:00 · ETA 2:47
+[00:54:08] [  55%] +838s players 2550/3096
+players: 2557/3096 (83%) · 3.3 fps · elapsed 13:02 · ETA 2:44
+[00:54:10] [  55%] +840s players 2557/3096
+players: 2564/3096 (83%) · 3.3 fps · elapsed 13:04 · ETA 2:42
+[00:54:12] [  55%] +842s players 2564/3096
+players: 2571/3096 (83%) · 3.3 fps · elapsed 13:06 · ETA 2:40
+[00:54:14] [  55%] +844s players 2571/3096
+players: 2577/3096 (83%) · 3.3 fps · elapsed 13:08 · ETA 2:38
+[00:54:16] [  55%] +846s players 2577/3096
+players: 2583/3096 (83%) · 3.3 fps · elapsed 13:10 · ETA 2:37
+[00:54:19] [  55%] +849s players 2583/3096
+players: 2589/3096 (84%) · 3.3 fps · elapsed 13:13 · ETA 2:35
+[00:54:21] [  55%] +851s players 2589/3096
+players: 2595/3096 (84%) · 3.3 fps · elapsed 13:15 · ETA 2:33
+[00:54:23] [  55%] +853s players 2595/3096
+players: 2601/3096 (84%) · 3.3 fps · elapsed 13:17 · ETA 2:31
+[00:54:25] [  55%] +855s players 2601/3096
+players: 2607/3096 (84%) · 3.3 fps · elapsed 13:19 · ETA 2:29
+[00:54:27] [  55%] +857s players 2607/3096
+players: 2613/3096 (84%) · 3.3 fps · elapsed 13:21 · ETA 2:28
+[00:54:29] [  55%] +859s players 2613/3096
+players: 2620/3096 (85%) · 3.3 fps · elapsed 13:24 · ETA 2:26
+[00:54:32] [  55%] +862s players 2620/3096
+players: 2627/3096 (85%) · 3.3 fps · elapsed 13:26 · ETA 2:23
+[00:54:34] [  55%] +864s players 2627/3096
+players: 2633/3096 (85%) · 3.3 fps · elapsed 13:28 · ETA 2:22
+[00:54:36] [  56%] +866s players 2633/3096
+players: 2639/3096 (85%) · 3.3 fps · elapsed 13:30 · ETA 2:20
+[00:54:38] [  56%] +868s players 2639/3096
+players: 2645/3096 (85%) · 3.3 fps · elapsed 13:32 · ETA 2:18
+[00:54:40] [  56%] +870s players 2645/3096
+players: 2651/3096 (86%) · 3.3 fps · elapsed 13:34 · ETA 2:16
+[00:54:42] [  56%] +872s players 2651/3096
+players: 2657/3096 (86%) · 3.3 fps · elapsed 13:36 · ETA 2:14
+[00:54:45] [  56%] +875s players 2657/3096
+players: 2663/3096 (86%) · 3.3 fps · elapsed 13:39 · ETA 2:13
+[00:54:47] [  56%] +877s players 2663/3096
+players: 2669/3096 (86%) · 3.2 fps · elapsed 13:41 · ETA 2:11
+[00:54:49] [  56%] +879s players 2669/3096
+players: 2676/3096 (86%) · 3.2 fps · elapsed 13:43 · ETA 2:09
+[00:54:51] [  56%] +881s players 2676/3096
+players: 2683/3096 (87%) · 3.2 fps · elapsed 13:45 · ETA 2:07
+[00:54:54] [  56%] +884s players 2683/3096
+players: 2690/3096 (87%) · 3.2 fps · elapsed 13:48 · ETA 2:05
+[00:54:56] [  56%] +886s players 2690/3096
+players: 2696/3096 (87%) · 3.2 fps · elapsed 13:50 · ETA 2:03
+[00:54:58] [  56%] +888s players 2696/3096
+players: 2702/3096 (87%) · 3.2 fps · elapsed 13:52 · ETA 2:01
+[00:55:00] [  56%] +890s players 2702/3096
+players: 2708/3096 (87%) · 3.2 fps · elapsed 13:54 · ETA 1:59
+[00:55:03] [  56%] +893s players 2708/3096
+players: 2714/3096 (88%) · 3.2 fps · elapsed 13:57 · ETA 1:57
+[00:55:05] [  56%] +895s players 2714/3096
+players: 2720/3096 (88%) · 3.2 fps · elapsed 13:59 · ETA 1:56
+[00:55:07] [  56%] +897s players 2720/3096
+players: 2725/3096 (88%) · 3.2 fps · elapsed 14:01 · ETA 1:54
+[00:55:09] [  56%] +899s players 2725/3096
+players: 2730/3096 (88%) · 3.2 fps · elapsed 14:03 · ETA 1:53
+[00:55:11] [  56%] +901s players 2730/3096
+players: 2737/3096 (88%) · 3.2 fps · elapsed 14:06 · ETA 1:50
+[00:55:14] [  57%] +904s players 2737/3096
+players: 2743/3096 (89%) · 3.2 fps · elapsed 14:08 · ETA 1:49
+[00:55:16] [  57%] +906s players 2743/3096
+players: 2749/3096 (89%) · 3.2 fps · elapsed 14:10 · ETA 1:47
+[00:55:18] [  57%] +908s players 2749/3096
+players: 2755/3096 (89%) · 3.2 fps · elapsed 14:12 · ETA 1:45
+[00:55:20] [  57%] +910s players 2755/3096
+players: 2760/3096 (89%) · 3.2 fps · elapsed 14:14 · ETA 1:44
+[00:55:22] [  57%] +912s players 2760/3096
+players: 2765/3096 (89%) · 3.2 fps · elapsed 14:16 · ETA 1:42
+[00:55:24] [  57%] +914s players 2765/3096
+players: 2771/3096 (90%) · 3.2 fps · elapsed 14:18 · ETA 1:40
+[00:55:26] [  57%] +916s players 2771/3096
+players: 2777/3096 (90%) · 3.2 fps · elapsed 14:20 · ETA 1:38
+[00:55:28] [  57%] +918s players 2777/3096
+players: 2782/3096 (90%) · 3.2 fps · elapsed 14:22 · ETA 1:37
+[00:55:30] [  57%] +920s players 2782/3096
+players: 2787/3096 (90%) · 3.2 fps · elapsed 14:24 · ETA 1:35
+[00:55:32] [  57%] +922s players 2787/3096
+players: 2793/3096 (90%) · 3.2 fps · elapsed 14:27 · ETA 1:34
+[00:55:35] [  57%] +925s players 2793/3096
+players: 2798/3096 (90%) · 3.2 fps · elapsed 14:29 · ETA 1:32
+[00:55:37] [  57%] +927s players 2798/3096
+players: 2804/3096 (91%) · 3.2 fps · elapsed 14:31 · ETA 1:30
+[00:55:39] [  57%] +929s players 2804/3096
+players: 2811/3096 (91%) · 3.2 fps · elapsed 14:33 · ETA 1:28
+[00:55:41] [  57%] +931s players 2811/3096
+players: 2817/3096 (91%) · 3.2 fps · elapsed 14:35 · ETA 1:26
+[00:55:44] [  57%] +934s players 2817/3096
+players: 2823/3096 (91%) · 3.2 fps · elapsed 14:38 · ETA 1:24
+[00:55:46] [  57%] +936s players 2823/3096
+players: 2829/3096 (91%) · 3.2 fps · elapsed 14:40 · ETA 1:23
+[00:55:48] [  57%] +938s players 2829/3096
+players: 2835/3096 (92%) · 3.2 fps · elapsed 14:42 · ETA 1:21
+[00:55:50] [  57%] +940s players 2835/3096
+players: 2841/3096 (92%) · 3.2 fps · elapsed 14:44 · ETA 1:19
+[00:55:52] [  58%] +942s players 2841/3096
+players: 2847/3096 (92%) · 3.2 fps · elapsed 14:46 · ETA 1:17
+[00:55:54] [  58%] +944s players 2847/3096
+players: 2853/3096 (92%) · 3.2 fps · elapsed 14:48 · ETA 1:15
+[00:55:56] [  58%] +946s players 2853/3096
+players: 2859/3096 (92%) · 3.2 fps · elapsed 14:50 · ETA 1:13
+[00:55:58] [  58%] +948s players 2859/3096
+players: 2865/3096 (93%) · 3.2 fps · elapsed 14:52 · ETA 1:11
+[00:56:00] [  58%] +950s players 2865/3096
+players: 2871/3096 (93%) · 3.2 fps · elapsed 14:54 · ETA 1:10
+[00:56:02] [  58%] +952s players 2871/3096
+players: 2877/3096 (93%) · 3.2 fps · elapsed 14:56 · ETA 1:08
+[00:56:04] [  58%] +954s players 2877/3096
+players: 2883/3096 (93%) · 3.2 fps · elapsed 14:58 · ETA 1:06
+[00:56:06] [  58%] +957s players 2883/3096
+players: 2889/3096 (93%) · 3.2 fps · elapsed 15:01 · ETA 1:04
+[00:56:09] [  58%] +959s players 2889/3096
+players: 2895/3096 (94%) · 3.2 fps · elapsed 15:03 · ETA 1:02
+[00:56:11] [  58%] +961s players 2895/3096
+players: 2901/3096 (94%) · 3.2 fps · elapsed 15:05 · ETA 1:00
+[00:56:13] [  58%] +963s players 2901/3096
+players: 2907/3096 (94%) · 3.2 fps · elapsed 15:07 · ETA 0:59
+[00:56:15] [  58%] +965s players 2907/3096
+players: 2913/3096 (94%) · 3.2 fps · elapsed 15:09 · ETA 0:57
+[00:56:17] [  58%] +967s players 2913/3096
+players: 2919/3096 (94%) · 3.2 fps · elapsed 15:11 · ETA 0:55
+[00:56:20] [  58%] +970s players 2919/3096
+players: 2925/3096 (94%) · 3.2 fps · elapsed 15:14 · ETA 0:53
+[00:56:22] [  58%] +972s players 2925/3096
+players: 2930/3096 (95%) · 3.2 fps · elapsed 15:16 · ETA 0:51
+[00:56:24] [  58%] +974s players 2930/3096
+players: 2936/3096 (95%) · 3.2 fps · elapsed 15:18 · ETA 0:50
+[00:56:26] [  58%] +976s players 2936/3096
+players: 2942/3096 (95%) · 3.2 fps · elapsed 15:20 · ETA 0:48
+[00:56:29] [  59%] +979s players 2942/3096
+players: 2948/3096 (95%) · 3.2 fps · elapsed 15:23 · ETA 0:46
+[00:56:31] [  59%] +981s players 2948/3096
+players: 2955/3096 (95%) · 3.2 fps · elapsed 15:25 · ETA 0:44
+[00:56:33] [  59%] +983s players 2955/3096
+players: 2961/3096 (96%) · 3.2 fps · elapsed 15:27 · ETA 0:42
+[00:56:35] [  59%] +985s players 2961/3096
+players: 2968/3096 (96%) · 3.2 fps · elapsed 15:29 · ETA 0:40
+[00:56:37] [  59%] +987s players 2968/3096
+players: 2974/3096 (96%) · 3.2 fps · elapsed 15:31 · ETA 0:38
+[00:56:39] [  59%] +989s players 2974/3096
+players: 2980/3096 (96%) · 3.2 fps · elapsed 15:33 · ETA 0:36
+[00:56:42] [  59%] +992s players 2980/3096
+players: 2987/3096 (96%) · 3.2 fps · elapsed 15:36 · ETA 0:34
+[00:56:44] [  59%] +994s players 2987/3096
+players: 2994/3096 (97%) · 3.2 fps · elapsed 15:38 · ETA 0:31
+[00:56:46] [  59%] +996s players 2994/3096
+players: 3000/3096 (97%) · 3.2 fps · elapsed 15:40 · ETA 0:30
+[00:56:48] [  59%] +998s players 3000/3096
+players: 3007/3096 (97%) · 3.2 fps · elapsed 15:42 · ETA 0:27
+[00:56:50] [  59%] +1000s players 3007/3096
+players: 3013/3096 (97%) · 3.2 fps · elapsed 15:44 · ETA 0:26
+[00:56:52] [  59%] +1002s players 3013/3096
+players: 3020/3096 (98%) · 3.2 fps · elapsed 15:47 · ETA 0:23
+[00:56:55] [  59%] +1005s players 3020/3096
+players: 3027/3096 (98%) · 3.2 fps · elapsed 15:49 · ETA 0:21
+[00:56:57] [  59%] +1007s players 3027/3096
+players: 3034/3096 (98%) · 3.2 fps · elapsed 15:51 · ETA 0:19
+[00:56:59] [  59%] +1009s players 3034/3096
+players: 3040/3096 (98%) · 3.2 fps · elapsed 15:53 · ETA 0:17
+[00:57:01] [  59%] +1011s players 3040/3096
+players: 3046/3096 (98%) · 3.2 fps · elapsed 15:55 · ETA 0:15
+[00:57:03] [  60%] +1013s players 3046/3096
+players: 3052/3096 (99%) · 3.2 fps · elapsed 15:57 · ETA 0:13
+[00:57:05] [  60%] +1015s players 3052/3096
+players: 3058/3096 (99%) · 3.2 fps · elapsed 15:59 · ETA 0:11
+[00:57:07] [  60%] +1017s players 3058/3096
+players: 3064/3096 (99%) · 3.2 fps · elapsed 16:01 · ETA 0:10
+[00:57:09] [  60%] +1020s players 3064/3096
+players: 3070/3096 (99%) · 3.2 fps · elapsed 16:03 · ETA 0:08
+[00:57:12] [  60%] +1022s players 3070/3096
+players: 3076/3096 (99%) · 3.2 fps · elapsed 16:05 · ETA 0:06
+[00:57:14] [  60%] +1024s players 3076/3096
+players: 3082/3096 (100%) · 3.2 fps · elapsed 16:08 · ETA 0:04
+[00:57:16] [  60%] +1026s players 3082/3096
+players: 3088/3096 (100%) · 3.2 fps · elapsed 16:10 · ETA 0:02
+[00:57:18] [  60%] +1028s players 3088/3096
+players: 3095/3096 (100%) · 3.2 fps · elapsed 16:12 · ETA 0:00
+[00:57:20] [  60%] +1030s players 3095/3096
+players: 3096/3096 (100%) · 3.2 fps · elapsed 16:12 · ETA 0:00
+[00:57:20] [  60%] +1030s players 3096/3096
+DETECT: 62 raw tracks · homography present
+  raw #1 frames=398 span=[0-398] median=(0.33,0.79) inbounds=398/398 votes(A=0 B=398)
+  raw #2 frames=604 span=[0-662] median=(0.42,-0.04) inbounds=604/604 votes(A=604 B=0)
+  raw #3 frames=330 span=[0-350] median=(1.56,0.34) inbounds=0/330 votes(A=330 B=0)
+  raw #4 frames=123 span=[0-146] median=(1.75,0.32) inbounds=0/123 votes(A=123 B=0)
+  raw #5 frames=22 span=[0-21] median=(-0.43,0.09) inbounds=0/22 votes(A=22 B=0)
+  raw #6 frames=21 span=[28-48] median=(0.06,-0.13) inbounds=21/21 votes(A=21 B=0)
+  raw #7 frames=751 span=[35-786] median=(0.83,0.89) inbounds=751/751 votes(A=0 B=751)
+  raw #16 frames=3 span=[46-48] median=(-0.51,0.13) inbounds=0/3 votes(A=3 B=0)
+  raw #30 frames=4 span=[60-63] median=(-0.56,0.14) inbounds=0/4 votes(A=4 B=0)
+  raw #37 frames=24 span=[101-180] median=(2.02,-0.10) inbounds=0/24 votes(A=24 B=0)
+  raw #45 frames=64 span=[124-187] median=(0.21,-0.02) inbounds=64/64 votes(A=64 B=0)
+  raw #61 frames=49 span=[175-239] median=(1.75,0.37) inbounds=0/49 votes(A=49 B=0)
+  raw #69 frames=45 span=[204-251] median=(-0.21,0.10) inbounds=45/45 votes(A=45 B=0)
+  raw #75 frames=3 span=[210-212] median=(0.79,-0.34) inbounds=3/3 votes(A=3 B=0)
+  raw #100 frames=26 span=[257-290] median=(0.01,0.08) inbounds=26/26 votes(A=26 B=0)
+  raw #115 frames=254 span=[323-583] median=(0.78,-0.10) inbounds=254/254 votes(A=254 B=0)
+  raw #118 frames=733 span=[341-1087] median=(1.55,0.33) inbounds=0/733 votes(A=733 B=0)
+  raw #123 frames=64 span=[406-469] median=(0.17,1.01) inbounds=64/64 votes(A=0 B=64)
+  raw #124 frames=5 span=[412-416] median=(0.13,1.00) inbounds=5/5 votes(A=0 B=5)
+  raw #131 frames=11 span=[439-449] median=(0.13,-0.25) inbounds=11/11 votes(A=11 B=0)
+  raw #135 frames=554 span=[510-1063] median=(0.36,0.78) inbounds=554/554 votes(A=0 B=554)
+  raw #141 frames=945 span=[591-1544] median=(0.77,0.07) inbounds=945/945 votes(A=945 B=0)
+  raw #146 frames=10 span=[635-644] median=(0.17,-0.11) inbounds=10/10 votes(A=10 B=0)
+  raw #150 frames=4 span=[648-651] median=(0.80,-0.31) inbounds=4/4 votes(A=4 B=0)
+  raw #155 frames=82 span=[764-850] median=(0.21,-0.05) inbounds=82/82 votes(A=82 B=0)
+  raw #158 frames=2267 span=[818-3091] median=(0.39,0.91) inbounds=2267/2267 votes(A=0 B=2267)
+  raw #162 frames=5 span=[832-839] median=(2.00,-0.07) inbounds=0/5 votes(A=5 B=0)
+  raw #163 frames=38 span=[881-918] median=(0.39,0.18) inbounds=38/38 votes(A=38 B=0)
+  raw #165 frames=6 span=[955-960] median=(0.07,-0.35) inbounds=3/6 votes(A=6 B=0)
+  raw #168 frames=7 span=[1007-1014] median=(-0.07,-0.12) inbounds=7/7 votes(A=7 B=0)
+  raw #173 frames=400 span=[1036-1435] median=(0.28,-0.08) inbounds=400/400 votes(A=400 B=0)
+  raw #183 frames=988 span=[1091-2084] median=(1.57,0.34) inbounds=0/988 votes(A=988 B=0)
+  raw #186 frames=486 span=[1141-1626] median=(0.34,0.95) inbounds=486/486 votes(A=0 B=486)
+  raw #189 frames=12 span=[1149-1160] median=(1.17,-0.24) inbounds=8/12 votes(A=12 B=0)
+  raw #197 frames=9 span=[1453-1461] median=(-0.06,0.27) inbounds=8/9 votes(A=9 B=0)
+  raw #204 frames=5 span=[1465-1470] median=(-0.44,-0.11) inbounds=0/5 votes(A=5 B=0)
+  raw #206 frames=387 span=[1468-1872] median=(0.02,0.16) inbounds=387/387 votes(A=387 B=0)
+  raw #210 frames=777 span=[1553-2399] median=(0.89,0.24) inbounds=777/777 votes(A=777 B=0)
+  raw #212 frames=3 span=[1572-1574] median=(0.40,0.89) inbounds=3/3 votes(A=0 B=3)
+  raw #217 frames=2 span=[1627-1628] median=(0.88,1.01) inbounds=2/2 votes(A=0 B=2)
+  raw #218 frames=2 span=[1629-1630] median=(0.89,1.01) inbounds=2/2 votes(A=0 B=2)
+  raw #229 frames=43 span=[1731-1774] median=(0.87,1.01) inbounds=43/43 votes(A=0 B=43)
+  raw #232 frames=257 span=[1859-2115] median=(0.74,0.86) inbounds=257/257 votes(A=0 B=257)
+  raw #236 frames=763 span=[1877-2700] median=(0.24,-0.05) inbounds=763/763 votes(A=763 B=0)
+  raw #239 frames=28 span=[1967-1998] median=(-0.53,0.15) inbounds=0/28 votes(A=28 B=0)
+  raw #240 frames=20 span=[1968-1987] median=(0.80,-0.20) inbounds=18/20 votes(A=20 B=0)
+  raw #247 frames=19 span=[2061-2079] median=(1.76,0.36) inbounds=0/19 votes(A=19 B=0)
+  raw #252 frames=117 span=[2096-2212] median=(1.57,0.34) inbounds=0/117 votes(A=117 B=0)
+  raw #253 frames=1 span=[2117-2117] median=(0.90,1.00) inbounds=1/1 votes(A=0 B=1)
+  raw #255 frames=14 span=[2122-2135] median=(-0.34,-0.11) inbounds=11/14 votes(A=14 B=0)
+  raw #261 frames=18 span=[2164-2193] median=(-0.36,-0.12) inbounds=0/18 votes(A=18 B=0)
+  raw #265 frames=289 span=[2197-2487] median=(0.81,0.95) inbounds=289/289 votes(A=0 B=289)
+  raw #267 frames=848 span=[2218-3095] median=(1.58,0.15) inbounds=12/848 votes(A=848 B=0)
+  raw #275 frames=678 span=[2418-3095] median=(0.69,0.19) inbounds=678/678 votes(A=678 B=0)
+  raw #282 frames=5 span=[2526-2530] median=(1.82,0.31) inbounds=0/5 votes(A=5 B=0)
+  raw #285 frames=80 span=[2534-2737] median=(1.84,0.18) inbounds=0/80 votes(A=80 B=0)
+  raw #294 frames=486 span=[2605-3095] median=(0.75,0.56) inbounds=481/486 votes(A=121 B=365)
+  raw #309 frames=176 span=[2714-2903] median=(0.14,0.40) inbounds=176/176 votes(A=176 B=0)
+  raw #335 frames=11 span=[2820-2830] median=(1.92,0.08) inbounds=0/11 votes(A=11 B=0)
+  raw #344 frames=184 span=[2912-3095] median=(-0.05,0.28) inbounds=184/184 votes(A=184 B=0)
+  raw #353 frames=78 span=[3008-3091] median=(1.84,0.24) inbounds=0/78 votes(A=78 B=0)
+  raw #354 frames=4 span=[3056-3068] median=(2.15,-0.01) inbounds=0/4 votes(A=4 B=0)
+stitch: track 1 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 2 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 3 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 4 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 5 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 6 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 7 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 16 -> chain [5] MERGED (gap=25f cost=3.9 runner-up=none)
+stitch: track 30 -> chain [5, 16] MERGED (gap=12f cost=1.9 runner-up=none)
+stitch: track 37 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 45 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 61 -> chain [4] MERGED (gap=29f cost=2.3 runner-up=none)
+stitch: track 69 -> chain [45] MERGED (gap=17f cost=4.9 runner-up=none)
+stitch: track 75 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 100 -> chain [45, 69] MERGED (gap=6f cost=2.0 runner-up=none)
+stitch: track 115 -> chain [45, 69, 100] MERGED (gap=33f cost=7.6 runner-up=none)
+stitch: track 118 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 123 -> chain [1] MERGED (gap=8f cost=0.6 runner-up=none)
+stitch: track 124 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 131 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 135 -> chain [1, 123] MERGED (gap=41f cost=8.9 runner-up=none)
+stitch: track 141 -> chain [45, 69, 100, 115] MERGED (gap=8f cost=1.6 runner-up=none)
+stitch: track 146 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 150 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 155 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 158 -> chain [7] MERGED (gap=32f cost=3.4 runner-up=none)
+stitch: track 162 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 163 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 165 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 168 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 173 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 183 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 186 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 189 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 197 -> chain [173] MERGED (gap=18f cost=5.4 runner-up=none)
+stitch: track 204 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 206 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 210 -> chain [45, 69, 100, 115, 141] MERGED (gap=9f cost=2.2 runner-up=none)
+stitch: track 212 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 217 -> chain [186] MERGED (gap=1f cost=0.6 runner-up=none)
+stitch: track 218 -> chain [186, 217] MERGED (gap=1f cost=0.6 runner-up=none)
+stitch: track 229 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 232 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 236 -> chain [206] MERGED (gap=5f cost=1.8 runner-up=none)
+stitch: track 239 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 240 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 247 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 252 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 253 -> chain [232] MERGED (gap=2f cost=0.6 runner-up=none)
+stitch: track 255 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 261 -> chain [255] MERGED (gap=29f cost=2.8 runner-up=none)
+stitch: track 265 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 267 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 275 -> chain [45, 69, 100, 115, 141, 210] MERGED (gap=19f cost=4.1 runner-up=none)
+stitch: track 282 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 285 -> chain [282] MERGED (gap=4f cost=1.6 runner-up=none)
+stitch: track 294 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 309 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 335 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 344 -> chain [309] MERGED (gap=9f cost=1.0 runner-up=none)
+stitch: track 353 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: track 354 new chain (no candidate within gap/side/dist; best=none runner-up=none)
+stitch: 62 raw tracks -> 42 players (12 stitched: [[1, 123, 135], [4, 61], [5, 16, 30], [7, 158], [45, 69, 100, 115, 141, 210, 275], [173, 197], [186, 217, 218], [206, 236], [232, 253], [255, 261], [282, 285], [309, 344]])
+roster: 42 tracks -> kept 4 (A:2 B:2)
+  #1 B frames=1064 span=[0-1063] median=(0.34,0.80) -> KEPT
+  #2 A frames=663 span=[0-662] median=(0.41,-0.07) -> DROPPED(capped: >2 on side)
+  #3 A frames=351 span=[0-350] median=(1.56,0.34) -> DROPPED(off-court)
+  #4 A frames=240 span=[0-239] median=(1.76,0.33) -> DROPPED(off-court)
+  #5 A frames=64 span=[0-63] median=(-0.46,0.11) -> DROPPED(off-court)
+  #6 A frames=21 span=[28-48] median=(0.06,-0.13) -> DROPPED(capped: >2 on side)
+  #7 B frames=3057 span=[35-3091] median=(0.57,0.91) -> KEPT
+  #37 A frames=31 span=[101-180] median=(2.02,-0.10) -> DROPPED(off-court)
+  #45 A frames=2972 span=[124-3095] median=(0.76,0.07) -> KEPT
+  #75 A frames=3 span=[210-212] median=(0.79,-0.34) -> DROPPED(too-brief)
+  #118 A frames=747 span=[341-1087] median=(1.55,0.33) -> DROPPED(off-court)
+  #124 B frames=5 span=[412-416] median=(0.13,1.00) -> DROPPED(too-brief)
+  #131 A frames=11 span=[439-449] median=(0.13,-0.25) -> DROPPED(too-brief)
+  #146 A frames=10 span=[635-644] median=(0.17,-0.11) -> DROPPED(too-brief)
+  #150 A frames=4 span=[648-651] median=(0.80,-0.31) -> DROPPED(too-brief)
+  #155 A frames=87 span=[764-850] median=(0.21,-0.05) -> DROPPED(capped: >2 on side)
+  #162 A frames=8 span=[832-839] median=(2.02,-0.08) -> DROPPED(off-court)
+  #163 A frames=38 span=[881-918] median=(0.39,0.18) -> DROPPED(capped: >2 on side)
+  #165 A frames=6 span=[955-960] median=(0.07,-0.35) -> DROPPED(off-court)
+  #168 A frames=8 span=[1007-1014] median=(-0.07,-0.12) -> DROPPED(too-brief)
+  #173 A frames=426 span=[1036-1461] median=(0.28,-0.00) -> DROPPED(capped: >2 on side)
+  #183 A frames=994 span=[1091-2084] median=(1.57,0.34) -> DROPPED(off-court)
+  #186 B frames=490 span=[1141-1630] median=(0.34,0.95) -> DROPPED(capped: >2 on side)
+  #189 A frames=12 span=[1149-1160] median=(1.17,-0.24) -> DROPPED(too-brief)
+  #204 A frames=6 span=[1465-1470] median=(-0.44,-0.11) -> DROPPED(off-court)
+  #206 A frames=1233 span=[1468-2700] median=(0.17,0.07) -> KEPT
+  #212 B frames=3 span=[1572-1574] median=(0.40,0.89) -> DROPPED(too-brief)
+  #229 B frames=44 span=[1731-1774] median=(0.87,1.01) -> DROPPED(capped: >2 on side)
+  #232 B frames=259 span=[1859-2117] median=(0.74,0.86) -> DROPPED(capped: >2 on side)
+  #239 A frames=32 span=[1967-1998] median=(-0.53,0.15) -> DROPPED(off-court)
+  #240 A frames=20 span=[1968-1987] median=(0.80,-0.20) -> DROPPED(capped: >2 on side)
+  #247 A frames=19 span=[2061-2079] median=(1.76,0.36) -> DROPPED(off-court)
+  #252 A frames=117 span=[2096-2212] median=(1.57,0.34) -> DROPPED(off-court)
+  #255 A frames=72 span=[2122-2193] median=(-0.36,-0.11) -> DROPPED(off-court)
+  #265 B frames=291 span=[2197-2487] median=(0.81,0.95) -> DROPPED(capped: >2 on side)
+  #267 A frames=878 span=[2218-3095] median=(1.58,0.14) -> DROPPED(off-court)
+  #282 A frames=108 span=[2526-2737] median=(1.83,0.20) -> DROPPED(off-court)
+  #294 B frames=491 span=[2605-3095] median=(0.75,0.56) -> DROPPED(capped: >2 on side)
+  #309 A frames=382 span=[2714-3095] median=(-0.04,0.36) -> DROPPED(capped: >2 on side)
+  #335 A frames=11 span=[2820-2830] median=(1.92,0.08) -> DROPPED(off-court)
+  #353 A frames=84 span=[3008-3091] median=(1.84,0.24) -> DROPPED(off-court)
+  #354 A frames=13 span=[3056-3068] median=(2.14,-0.00) -> DROPPED(off-court)
+[00:58:00] [  60%] +1070s ball
+[00:58:00] [  60%] +1070s ball 3/3096 (0%) 9.1fps ETA 5:40
+[00:58:02] [  60%] +1072s ball 12/3096 (0%) 5.0fps ETA 10:13
+[00:58:04] [  60%] +1074s ball 21/3096 (0%) 4.7fps ETA 10:53
+[00:58:06] [  60%] +1076s ball 29/3096 (0%) 4.4fps ETA 11:29
+[00:58:08] [  60%] +1078s ball 37/3096 (1%) 4.2fps ETA 12:06
+[00:58:11] [  60%] +1081s ball 45/3096 (1%) 4.1fps ETA 12:26
+[00:58:13] [  60%] +1083s ball 53/3096 (1%) 4.0fps ETA 12:39
+[00:58:15] [  60%] +1085s ball 61/3096 (1%) 3.9fps ETA 12:49
+[00:58:17] [  61%] +1087s ball 69/3096 (2%) 3.9fps ETA 12:55
+[00:58:20] [  61%] +1090s ball 77/3096 (2%) 3.9fps ETA 13:00
+[00:58:22] [  61%] +1092s ball 85/3096 (2%) 3.8fps ETA 13:05
+[00:58:24] [  61%] +1094s ball 93/3096 (3%) 3.8fps ETA 13:09
+[00:58:26] [  61%] +1096s ball 101/3096 (3%) 3.8fps ETA 13:12
+[00:58:28] [  61%] +1098s ball 108/3096 (3%) 3.8fps ETA 13:14
+[00:58:30] [  61%] +1100s ball 115/3096 (3%) 3.7fps ETA 13:16
+[00:58:32] [  61%] +1102s ball 122/3096 (3%) 3.7fps ETA 13:19
+[00:58:34] [  61%] +1104s ball 129/3096 (4%) 3.7fps ETA 13:21
+[00:58:37] [  61%] +1107s ball 136/3096 (4%) 3.7fps ETA 13:22
+[00:58:39] [  61%] +1109s ball 143/3096 (4%) 3.7fps ETA 13:23
+[00:58:41] [  61%] +1111s ball 150/3096 (4%) 3.7fps ETA 13:23
+[00:58:43] [  61%] +1113s ball 157/3096 (5%) 3.7fps ETA 13:24
+[00:58:45] [  61%] +1115s ball 164/3096 (5%) 3.6fps ETA 13:25
+[00:58:47] [  61%] +1117s ball 171/3096 (5%) 3.6fps ETA 13:25
+[00:58:49] [  61%] +1119s ball 178/3096 (5%) 3.6fps ETA 13:26
+[00:58:51] [  61%] +1121s ball 185/3096 (5%) 3.6fps ETA 13:26
+[00:58:53] [  62%] +1123s ball 192/3096 (6%) 3.6fps ETA 13:26
+[00:58:55] [  62%] +1125s ball 199/3096 (6%) 3.6fps ETA 13:27
+[00:58:57] [  62%] +1127s ball 206/3096 (6%) 3.6fps ETA 13:27
+[00:58:59] [  62%] +1129s ball 213/3096 (6%) 3.6fps ETA 13:27
+[00:59:01] [  62%] +1131s ball 220/3096 (7%) 3.6fps ETA 13:27
+[00:59:03] [  62%] +1133s ball 227/3096 (7%) 3.6fps ETA 13:26
+[00:59:06] [  62%] +1136s ball 234/3096 (7%) 3.5fps ETA 13:26
+[00:59:08] [  62%] +1138s ball 241/3096 (7%) 3.5fps ETA 13:25
+[00:59:10] [  62%] +1140s ball 248/3096 (8%) 3.5fps ETA 13:25
+[00:59:12] [  62%] +1142s ball 255/3096 (8%) 3.5fps ETA 13:24
+[00:59:14] [  62%] +1144s ball 262/3096 (8%) 3.5fps ETA 13:23
+[00:59:16] [  62%] +1146s ball 269/3096 (8%) 3.5fps ETA 13:22
+[00:59:18] [  62%] +1148s ball 276/3096 (8%) 3.5fps ETA 13:21
+[00:59:20] [  62%] +1150s ball 283/3096 (9%) 3.5fps ETA 13:20
+[00:59:22] [  62%] +1152s ball 290/3096 (9%) 3.5fps ETA 13:19
+[00:59:24] [  62%] +1154s ball 297/3096 (9%) 3.5fps ETA 13:17
+[00:59:26] [  62%] +1156s ball 304/3096 (9%) 3.5fps ETA 13:16
+[00:59:28] [  63%] +1158s ball 311/3096 (10%) 3.5fps ETA 13:15
+[00:59:31] [  63%] +1161s ball 318/3096 (10%) 3.5fps ETA 13:14
+[00:59:33] [  63%] +1163s ball 325/3096 (10%) 3.5fps ETA 13:13
+[00:59:35] [  63%] +1165s ball 332/3096 (10%) 3.5fps ETA 13:11
+[00:59:37] [  63%] +1167s ball 339/3096 (10%) 3.5fps ETA 13:10
+[00:59:39] [  63%] +1169s ball 346/3096 (11%) 3.5fps ETA 13:09
+[00:59:41] [  63%] +1171s ball 353/3096 (11%) 3.5fps ETA 13:08
+[00:59:43] [  63%] +1173s ball 360/3096 (11%) 3.5fps ETA 13:07
+[00:59:45] [  63%] +1175s ball 367/3096 (11%) 3.5fps ETA 13:06
+[00:59:47] [  63%] +1178s ball 374/3096 (12%) 3.5fps ETA 13:05
+[00:59:50] [  63%] +1180s ball 381/3096 (12%) 3.5fps ETA 13:04
+[00:59:52] [  63%] +1182s ball 388/3096 (12%) 3.5fps ETA 13:03
+[00:59:54] [  63%] +1184s ball 395/3096 (12%) 3.5fps ETA 13:02
+[00:59:56] [  63%] +1186s ball 402/3096 (12%) 3.4fps ETA 13:01
+[00:59:58] [  63%] +1188s ball 409/3096 (13%) 3.4fps ETA 12:59
+[01:00:00] [  63%] +1190s ball 416/3096 (13%) 3.4fps ETA 12:58
+[01:00:03] [  63%] +1193s ball 423/3096 (13%) 3.4fps ETA 12:56
+[01:00:05] [  63%] +1195s ball 430/3096 (13%) 3.4fps ETA 12:55
+[01:00:07] [  64%] +1197s ball 437/3096 (14%) 3.4fps ETA 12:54
+[01:00:09] [  64%] +1199s ball 444/3096 (14%) 3.4fps ETA 12:52
+[01:00:11] [  64%] +1201s ball 451/3096 (14%) 3.4fps ETA 12:51
+[01:00:13] [  64%] +1203s ball 458/3096 (14%) 3.4fps ETA 12:49
+[01:00:15] [  64%] +1205s ball 465/3096 (15%) 3.4fps ETA 12:48
+[01:00:18] [  64%] +1208s ball 472/3096 (15%) 3.4fps ETA 12:46
+[01:00:20] [  64%] +1210s ball 479/3096 (15%) 3.4fps ETA 12:45
+[01:00:22] [  64%] +1212s ball 486/3096 (15%) 3.4fps ETA 12:43
+[01:00:24] [  64%] +1214s ball 493/3096 (15%) 3.4fps ETA 12:41
+[01:00:26] [  64%] +1216s ball 500/3096 (16%) 3.4fps ETA 12:40
+[01:00:28] [  64%] +1218s ball 507/3096 (16%) 3.4fps ETA 12:38
+[01:00:30] [  64%] +1220s ball 514/3096 (16%) 3.4fps ETA 12:37
+[01:00:33] [  64%] +1223s ball 521/3096 (16%) 3.4fps ETA 12:35
+[01:00:35] [  64%] +1225s ball 528/3096 (17%) 3.4fps ETA 12:34
+[01:00:37] [  64%] +1227s ball 535/3096 (17%) 3.4fps ETA 12:32
+[01:00:39] [  64%] +1229s ball 542/3096 (17%) 3.4fps ETA 12:31
+[01:00:41] [  64%] +1231s ball 549/3096 (17%) 3.4fps ETA 12:29
+[01:00:43] [  64%] +1233s ball 556/3096 (17%) 3.4fps ETA 12:27
+[01:00:46] [  65%] +1236s ball 563/3096 (18%) 3.4fps ETA 12:26
+[01:00:48] [  65%] +1238s ball 570/3096 (18%) 3.4fps ETA 12:24
+[01:00:50] [  65%] +1240s ball 577/3096 (18%) 3.4fps ETA 12:23
+[01:00:52] [  65%] +1242s ball 584/3096 (18%) 3.4fps ETA 12:21
+[01:00:54] [  65%] +1244s ball 591/3096 (19%) 3.4fps ETA 12:19
+[01:00:56] [  65%] +1246s ball 598/3096 (19%) 3.4fps ETA 12:18
+[01:00:58] [  65%] +1248s ball 605/3096 (19%) 3.4fps ETA 12:16
+[01:01:01] [  65%] +1251s ball 612/3096 (19%) 3.4fps ETA 12:14
+[01:01:03] [  65%] +1253s ball 619/3096 (19%) 3.4fps ETA 12:12
+[01:01:05] [  65%] +1255s ball 626/3096 (20%) 3.4fps ETA 12:10
+[01:01:07] [  65%] +1257s ball 633/3096 (20%) 3.4fps ETA 12:09
+[01:01:09] [  65%] +1259s ball 640/3096 (20%) 3.4fps ETA 12:07
+[01:01:11] [  65%] +1261s ball 647/3096 (20%) 3.4fps ETA 12:05
+[01:01:13] [  65%] +1263s ball 654/3096 (21%) 3.4fps ETA 12:03
+[01:01:16] [  65%] +1266s ball 661/3096 (21%) 3.4fps ETA 12:01
+[01:01:18] [  65%] +1268s ball 668/3096 (21%) 3.4fps ETA 11:59
+[01:01:20] [  65%] +1270s ball 675/3096 (21%) 3.4fps ETA 11:58
+[01:01:22] [  66%] +1272s ball 682/3096 (22%) 3.4fps ETA 11:56
+[01:01:24] [  66%] +1274s ball 689/3096 (22%) 3.4fps ETA 11:54
+[01:01:26] [  66%] +1276s ball 696/3096 (22%) 3.4fps ETA 11:52
+[01:01:28] [  66%] +1278s ball 703/3096 (22%) 3.4fps ETA 11:50
+[01:01:31] [  66%] +1281s ball 710/3096 (22%) 3.4fps ETA 11:48
+[01:01:33] [  66%] +1283s ball 717/3096 (23%) 3.4fps ETA 11:47
+[01:01:35] [  66%] +1285s ball 724/3096 (23%) 3.4fps ETA 11:45
+[01:01:37] [  66%] +1287s ball 731/3096 (23%) 3.4fps ETA 11:43
+[01:01:39] [  66%] +1289s ball 738/3096 (23%) 3.4fps ETA 11:41
+[01:01:41] [  66%] +1291s ball 745/3096 (24%) 3.4fps ETA 11:39
+[01:01:43] [  66%] +1293s ball 752/3096 (24%) 3.4fps ETA 11:37
+[01:01:46] [  66%] +1296s ball 759/3096 (24%) 3.4fps ETA 11:35
+[01:01:48] [  66%] +1298s ball 766/3096 (24%) 3.4fps ETA 11:33
+[01:01:50] [  66%] +1300s ball 773/3096 (24%) 3.4fps ETA 11:32
+[01:01:52] [  66%] +1302s ball 780/3096 (25%) 3.4fps ETA 11:30
+[01:01:54] [  66%] +1304s ball 787/3096 (25%) 3.4fps ETA 11:28
+[01:01:56] [  66%] +1306s ball 794/3096 (25%) 3.4fps ETA 11:26
+[01:01:58] [  66%] +1308s ball 801/3096 (25%) 3.4fps ETA 11:24
+[01:02:01] [  67%] +1311s ball 808/3096 (26%) 3.4fps ETA 11:22
+[01:02:03] [  67%] +1313s ball 815/3096 (26%) 3.4fps ETA 11:20
+[01:02:05] [  67%] +1315s ball 822/3096 (26%) 3.4fps ETA 11:18
+[01:02:07] [  67%] +1317s ball 829/3096 (26%) 3.4fps ETA 11:16
+[01:02:09] [  67%] +1319s ball 836/3096 (27%) 3.3fps ETA 11:14
+[01:02:11] [  67%] +1321s ball 843/3096 (27%) 3.3fps ETA 11:12
+[01:02:14] [  67%] +1324s ball 850/3096 (27%) 3.3fps ETA 11:11
+[01:02:16] [  67%] +1326s ball 857/3096 (27%) 3.3fps ETA 11:09
+[01:02:18] [  67%] +1328s ball 864/3096 (27%) 3.3fps ETA 11:07
+[01:02:20] [  67%] +1330s ball 871/3096 (28%) 3.3fps ETA 11:05
+[01:02:23] [  67%] +1333s ball 878/3096 (28%) 3.3fps ETA 11:04
+[01:02:25] [  67%] +1335s ball 885/3096 (28%) 3.3fps ETA 11:02
+[01:02:27] [  67%] +1337s ball 892/3096 (28%) 3.3fps ETA 11:00
+[01:02:29] [  67%] +1339s ball 899/3096 (29%) 3.3fps ETA 10:58
+[01:02:31] [  67%] +1341s ball 906/3096 (29%) 3.3fps ETA 10:56
+[01:02:34] [  67%] +1344s ball 913/3096 (29%) 3.3fps ETA 10:54
+[01:02:36] [  67%] +1346s ball 920/3096 (29%) 3.3fps ETA 10:53
+[01:02:38] [  67%] +1348s ball 927/3096 (29%) 3.3fps ETA 10:51
+[01:02:40] [  68%] +1350s ball 934/3096 (30%) 3.3fps ETA 10:49
+[01:02:42] [  68%] +1352s ball 941/3096 (30%) 3.3fps ETA 10:47
+[01:02:45] [  68%] +1355s ball 948/3096 (30%) 3.3fps ETA 10:45
+[01:02:47] [  68%] +1357s ball 955/3096 (30%) 3.3fps ETA 10:43
+[01:02:49] [  68%] +1359s ball 962/3096 (31%) 3.3fps ETA 10:42
+[01:02:51] [  68%] +1361s ball 969/3096 (31%) 3.3fps ETA 10:40
+[01:02:54] [  68%] +1364s ball 976/3096 (31%) 3.3fps ETA 10:38
+[01:02:56] [  68%] +1366s ball 983/3096 (31%) 3.3fps ETA 10:36
+[01:02:58] [  68%] +1368s ball 990/3096 (31%) 3.3fps ETA 10:35
+[01:03:00] [  68%] +1370s ball 997/3096 (32%) 3.3fps ETA 10:33
+[01:03:03] [  68%] +1373s ball 1004/3096 (32%) 3.3fps ETA 10:31
+[01:03:05] [  68%] +1375s ball 1011/3096 (32%) 3.3fps ETA 10:29
+[01:03:07] [  68%] +1377s ball 1018/3096 (32%) 3.3fps ETA 10:27
+[01:03:09] [  68%] +1379s ball 1025/3096 (33%) 3.3fps ETA 10:25
+[01:03:12] [  68%] +1382s ball 1032/3096 (33%) 3.3fps ETA 10:24
+[01:03:14] [  68%] +1384s ball 1039/3096 (33%) 3.3fps ETA 10:22
+[01:03:16] [  68%] +1386s ball 1046/3096 (33%) 3.3fps ETA 10:20
+[01:03:18] [  69%] +1388s ball 1053/3096 (34%) 3.3fps ETA 10:18
+[01:03:21] [  69%] +1391s ball 1060/3096 (34%) 3.3fps ETA 10:16
+[01:03:23] [  69%] +1393s ball 1067/3096 (34%) 3.3fps ETA 10:14
+[01:03:25] [  69%] +1395s ball 1074/3096 (34%) 3.3fps ETA 10:12
+[01:03:27] [  69%] +1397s ball 1081/3096 (34%) 3.3fps ETA 10:10
+[01:03:30] [  69%] +1400s ball 1088/3096 (35%) 3.3fps ETA 10:08
+[01:03:32] [  69%] +1402s ball 1095/3096 (35%) 3.3fps ETA 10:07
+[01:03:34] [  69%] +1404s ball 1102/3096 (35%) 3.3fps ETA 10:05
+[01:03:36] [  69%] +1406s ball 1109/3096 (35%) 3.3fps ETA 10:03
+[01:03:39] [  69%] +1409s ball 1116/3096 (36%) 3.3fps ETA 10:01
+[01:03:41] [  69%] +1411s ball 1123/3096 (36%) 3.3fps ETA 9:59
+[01:03:43] [  69%] +1413s ball 1130/3096 (36%) 3.3fps ETA 9:57
+[01:03:46] [  69%] +1416s ball 1137/3096 (36%) 3.3fps ETA 9:55
+[01:03:48] [  69%] +1418s ball 1144/3096 (36%) 3.3fps ETA 9:54
+[01:03:50] [  69%] +1420s ball 1151/3096 (37%) 3.3fps ETA 9:52
+[01:03:52] [  69%] +1422s ball 1158/3096 (37%) 3.3fps ETA 9:50
+[01:03:55] [  69%] +1425s ball 1165/3096 (37%) 3.3fps ETA 9:48
+[01:03:57] [  69%] +1427s ball 1172/3096 (37%) 3.3fps ETA 9:46
+[01:03:59] [  70%] +1429s ball 1178/3096 (38%) 3.3fps ETA 9:45
+[01:04:01] [  70%] +1431s ball 1185/3096 (38%) 3.3fps ETA 9:43
+[01:04:04] [  70%] +1434s ball 1192/3096 (38%) 3.3fps ETA 9:41
+[01:04:06] [  70%] +1436s ball 1199/3096 (38%) 3.3fps ETA 9:39
+[01:04:08] [  70%] +1438s ball 1206/3096 (38%) 3.3fps ETA 9:37
+[01:04:10] [  70%] +1440s ball 1213/3096 (39%) 3.3fps ETA 9:35
+[01:04:13] [  70%] +1443s ball 1220/3096 (39%) 3.3fps ETA 9:33
+[01:04:15] [  70%] +1445s ball 1227/3096 (39%) 3.3fps ETA 9:31
+[01:04:17] [  70%] +1447s ball 1234/3096 (39%) 3.3fps ETA 9:29
+[01:04:19] [  70%] +1449s ball 1241/3096 (40%) 3.3fps ETA 9:27
+[01:04:21] [  70%] +1451s ball 1248/3096 (40%) 3.3fps ETA 9:25
+[01:04:24] [  70%] +1454s ball 1255/3096 (40%) 3.3fps ETA 9:23
+[01:04:26] [  70%] +1456s ball 1262/3096 (40%) 3.3fps ETA 9:21
+[01:04:28] [  70%] +1458s ball 1269/3096 (40%) 3.3fps ETA 9:19
+[01:04:30] [  70%] +1461s ball 1276/3096 (41%) 3.3fps ETA 9:17
+[01:04:33] [  70%] +1463s ball 1283/3096 (41%) 3.3fps ETA 9:15
+[01:04:35] [  70%] +1465s ball 1290/3096 (41%) 3.3fps ETA 9:13
+[01:04:37] [  70%] +1467s ball 1297/3096 (41%) 3.3fps ETA 9:11
+[01:04:39] [  71%] +1469s ball 1304/3096 (42%) 3.3fps ETA 9:09
+[01:04:42] [  71%] +1472s ball 1311/3096 (42%) 3.3fps ETA 9:07
+[01:04:44] [  71%] +1474s ball 1318/3096 (42%) 3.3fps ETA 9:05
+[01:04:46] [  71%] +1476s ball 1325/3096 (42%) 3.3fps ETA 9:03
+[01:04:48] [  71%] +1478s ball 1332/3096 (43%) 3.3fps ETA 9:01
+[01:04:51] [  71%] +1481s ball 1339/3096 (43%) 3.3fps ETA 8:59
+[01:04:53] [  71%] +1483s ball 1346/3096 (43%) 3.3fps ETA 8:57
+[01:04:55] [  71%] +1485s ball 1353/3096 (43%) 3.3fps ETA 8:55
+[01:04:57] [  71%] +1487s ball 1360/3096 (43%) 3.3fps ETA 8:53
+[01:04:59] [  71%] +1489s ball 1366/3096 (44%) 3.3fps ETA 8:51
+[01:05:01] [  71%] +1492s ball 1372/3096 (44%) 3.3fps ETA 8:50
+[01:05:04] [  71%] +1494s ball 1378/3096 (44%) 3.3fps ETA 8:48
+[01:05:06] [  71%] +1496s ball 1384/3096 (44%) 3.2fps ETA 8:46
+[01:05:08] [  71%] +1498s ball 1390/3096 (44%) 3.2fps ETA 8:45
+[01:05:10] [  71%] +1500s ball 1396/3096 (45%) 3.2fps ETA 8:43
+[01:05:12] [  71%] +1502s ball 1402/3096 (45%) 3.2fps ETA 8:42
+[01:05:14] [  71%] +1504s ball 1409/3096 (45%) 3.2fps ETA 8:40
+[01:05:16] [  71%] +1506s ball 1416/3096 (45%) 3.2fps ETA 8:37
+[01:05:18] [  71%] +1508s ball 1422/3096 (45%) 3.2fps ETA 8:36
+[01:05:20] [  72%] +1510s ball 1429/3096 (46%) 3.2fps ETA 8:34
+[01:05:23] [  72%] +1513s ball 1436/3096 (46%) 3.2fps ETA 8:32
+[01:05:25] [  72%] +1515s ball 1443/3096 (46%) 3.2fps ETA 8:30
+[01:05:27] [  72%] +1517s ball 1450/3096 (46%) 3.2fps ETA 8:28
+[01:05:30] [  72%] +1520s ball 1457/3096 (47%) 3.2fps ETA 8:26
+[01:05:32] [  72%] +1522s ball 1464/3096 (47%) 3.2fps ETA 8:23
+[01:05:34] [  72%] +1524s ball 1471/3096 (47%) 3.2fps ETA 8:21
+[01:05:36] [  72%] +1526s ball 1478/3096 (47%) 3.2fps ETA 8:19
+[01:05:39] [  72%] +1529s ball 1485/3096 (47%) 3.2fps ETA 8:17
+[01:05:41] [  72%] +1531s ball 1492/3096 (48%) 3.2fps ETA 8:15
+[01:05:43] [  72%] +1533s ball 1499/3096 (48%) 3.2fps ETA 8:13
+[01:05:45] [  72%] +1535s ball 1505/3096 (48%) 3.2fps ETA 8:12
+[01:05:47] [  72%] +1537s ball 1512/3096 (48%) 3.2fps ETA 8:10
+[01:05:50] [  72%] +1540s ball 1519/3096 (49%) 3.2fps ETA 8:07
+[01:05:52] [  72%] +1542s ball 1526/3096 (49%) 3.2fps ETA 8:05
+[01:05:54] [  72%] +1544s ball 1533/3096 (49%) 3.2fps ETA 8:03
+[01:05:57] [  72%] +1547s ball 1540/3096 (49%) 3.2fps ETA 8:01
+[01:05:59] [  72%] +1549s ball 1547/3096 (49%) 3.2fps ETA 7:59
+[01:06:01] [  73%] +1551s ball 1554/3096 (50%) 3.2fps ETA 7:57
+[01:06:03] [  73%] +1553s ball 1561/3096 (50%) 3.2fps ETA 7:55
+[01:06:06] [  73%] +1556s ball 1568/3096 (50%) 3.2fps ETA 7:53
+[01:06:08] [  73%] +1558s ball 1575/3096 (50%) 3.2fps ETA 7:51
+[01:06:10] [  73%] +1560s ball 1582/3096 (51%) 3.2fps ETA 7:49
+[01:06:13] [  73%] +1563s ball 1589/3096 (51%) 3.2fps ETA 7:47
+[01:06:15] [  73%] +1565s ball 1596/3096 (51%) 3.2fps ETA 7:45
+[01:06:17] [  73%] +1567s ball 1603/3096 (51%) 3.2fps ETA 7:43
+[01:06:19] [  73%] +1569s ball 1609/3096 (51%) 3.2fps ETA 7:41
+[01:06:22] [  73%] +1572s ball 1616/3096 (52%) 3.2fps ETA 7:39
+[01:06:24] [  73%] +1574s ball 1622/3096 (52%) 3.2fps ETA 7:37
+[01:06:26] [  73%] +1576s ball 1629/3096 (52%) 3.2fps ETA 7:35
+[01:06:28] [  73%] +1578s ball 1636/3096 (52%) 3.2fps ETA 7:33
+[01:06:30] [  73%] +1580s ball 1642/3096 (53%) 3.2fps ETA 7:31
+[01:06:32] [  73%] +1582s ball 1648/3096 (53%) 3.2fps ETA 7:30
+[01:06:34] [  73%] +1584s ball 1654/3096 (53%) 3.2fps ETA 7:28
+[01:06:36] [  73%] +1587s ball 1661/3096 (53%) 3.2fps ETA 7:26
+[01:06:39] [  73%] +1589s ball 1668/3096 (53%) 3.2fps ETA 7:24
+[01:06:41] [  74%] +1591s ball 1675/3096 (54%) 3.2fps ETA 7:22
+[01:06:43] [  74%] +1593s ball 1682/3096 (54%) 3.2fps ETA 7:20
+[01:06:45] [  74%] +1595s ball 1688/3096 (54%) 3.2fps ETA 7:18
+[01:06:48] [  74%] +1598s ball 1695/3096 (54%) 3.2fps ETA 7:16
+[01:06:50] [  74%] +1600s ball 1702/3096 (54%) 3.2fps ETA 7:14
+[01:06:52] [  74%] +1602s ball 1708/3096 (55%) 3.2fps ETA 7:12
+[01:06:54] [  74%] +1604s ball 1714/3096 (55%) 3.2fps ETA 7:10
+[01:06:56] [  74%] +1606s ball 1720/3096 (55%) 3.2fps ETA 7:09
+[01:06:58] [  74%] +1608s ball 1727/3096 (55%) 3.2fps ETA 7:07
+[01:07:01] [  74%] +1611s ball 1734/3096 (56%) 3.2fps ETA 7:04
+[01:07:03] [  74%] +1613s ball 1741/3096 (56%) 3.2fps ETA 7:02
+[01:07:05] [  74%] +1615s ball 1748/3096 (56%) 3.2fps ETA 7:00
+[01:07:07] [  74%] +1617s ball 1755/3096 (56%) 3.2fps ETA 6:58
+[01:07:10] [  74%] +1620s ball 1762/3096 (56%) 3.2fps ETA 6:56
+[01:07:12] [  74%] +1622s ball 1769/3096 (57%) 3.2fps ETA 6:54
+[01:07:14] [  74%] +1624s ball 1776/3096 (57%) 3.2fps ETA 6:52
+[01:07:16] [  74%] +1626s ball 1783/3096 (57%) 3.2fps ETA 6:50
+[01:07:19] [  74%] +1629s ball 1790/3096 (57%) 3.2fps ETA 6:47
+[01:07:21] [  75%] +1631s ball 1797/3096 (58%) 3.2fps ETA 6:45
+[01:07:23] [  75%] +1633s ball 1804/3096 (58%) 3.2fps ETA 6:43
+[01:07:25] [  75%] +1635s ball 1811/3096 (58%) 3.2fps ETA 6:41
+[01:07:28] [  75%] +1638s ball 1818/3096 (58%) 3.2fps ETA 6:39
+[01:07:30] [  75%] +1640s ball 1825/3096 (58%) 3.2fps ETA 6:37
+[01:07:32] [  75%] +1642s ball 1832/3096 (59%) 3.2fps ETA 6:35
+[01:07:34] [  75%] +1644s ball 1838/3096 (59%) 3.2fps ETA 6:33
+[01:07:36] [  75%] +1646s ball 1844/3096 (59%) 3.2fps ETA 6:31
+[01:07:38] [  75%] +1648s ball 1850/3096 (59%) 3.2fps ETA 6:29
+[01:07:40] [  75%] +1650s ball 1856/3096 (59%) 3.2fps ETA 6:27
+[01:07:42] [  75%] +1652s ball 1862/3096 (60%) 3.2fps ETA 6:26
+[01:07:44] [  75%] +1654s ball 1868/3096 (60%) 3.2fps ETA 6:24
+[01:07:46] [  75%] +1656s ball 1874/3096 (60%) 3.2fps ETA 6:22
+[01:07:48] [  75%] +1658s ball 1880/3096 (60%) 3.2fps ETA 6:20
+[01:07:50] [  75%] +1660s ball 1886/3096 (60%) 3.2fps ETA 6:19
+[01:07:53] [  75%] +1663s ball 1893/3096 (61%) 3.2fps ETA 6:16
+[01:07:55] [  75%] +1665s ball 1900/3096 (61%) 3.2fps ETA 6:14
+[01:07:57] [  75%] +1667s ball 1907/3096 (61%) 3.2fps ETA 6:12
+[01:08:00] [  75%] +1670s ball 1914/3096 (61%) 3.2fps ETA 6:10
+[01:08:02] [  76%] +1672s ball 1920/3096 (62%) 3.2fps ETA 6:08
+[01:08:04] [  76%] +1674s ball 1927/3096 (62%) 3.2fps ETA 6:06
+[01:08:06] [  76%] +1676s ball 1934/3096 (62%) 3.2fps ETA 6:04
+[01:08:09] [  76%] +1679s ball 1941/3096 (62%) 3.2fps ETA 6:02
+[01:08:11] [  76%] +1681s ball 1948/3096 (62%) 3.2fps ETA 6:00
+[01:08:13] [  76%] +1683s ball 1955/3096 (63%) 3.2fps ETA 5:58
+[01:08:15] [  76%] +1685s ball 1962/3096 (63%) 3.2fps ETA 5:55
+[01:08:18] [  76%] +1688s ball 1969/3096 (63%) 3.2fps ETA 5:53
+[01:08:20] [  76%] +1690s ball 1976/3096 (63%) 3.2fps ETA 5:51
+[01:08:22] [  76%] +1692s ball 1983/3096 (64%) 3.2fps ETA 5:49
+[01:08:25] [  76%] +1695s ball 1990/3096 (64%) 3.2fps ETA 5:47
+[01:08:27] [  76%] +1697s ball 1997/3096 (64%) 3.2fps ETA 5:45
+[01:08:29] [  76%] +1699s ball 2004/3096 (64%) 3.2fps ETA 5:42
+[01:08:31] [  76%] +1701s ball 2011/3096 (64%) 3.2fps ETA 5:40
+[01:08:34] [  76%] +1704s ball 2018/3096 (65%) 3.2fps ETA 5:38
+[01:08:36] [  76%] +1706s ball 2025/3096 (65%) 3.2fps ETA 5:36
+[01:08:38] [  76%] +1708s ball 2032/3096 (65%) 3.2fps ETA 5:34
+[01:08:40] [  76%] +1710s ball 2039/3096 (65%) 3.2fps ETA 5:32
+[01:08:43] [  77%] +1713s ball 2046/3096 (66%) 3.2fps ETA 5:30
+[01:08:45] [  77%] +1715s ball 2053/3096 (66%) 3.2fps ETA 5:27
+[01:08:47] [  77%] +1717s ball 2060/3096 (66%) 3.2fps ETA 5:25
+[01:08:50] [  77%] +1720s ball 2067/3096 (66%) 3.2fps ETA 5:23
+[01:08:52] [  77%] +1722s ball 2074/3096 (66%) 3.2fps ETA 5:21
+[01:08:54] [  77%] +1724s ball 2081/3096 (67%) 3.2fps ETA 5:19
+[01:08:56] [  77%] +1726s ball 2088/3096 (67%) 3.2fps ETA 5:16
+[01:08:58] [  77%] +1728s ball 2095/3096 (67%) 3.2fps ETA 5:14
+[01:09:01] [  77%] +1731s ball 2102/3096 (67%) 3.2fps ETA 5:12
+[01:09:03] [  77%] +1733s ball 2109/3096 (68%) 3.2fps ETA 5:10
+[01:09:05] [  77%] +1735s ball 2116/3096 (68%) 3.2fps ETA 5:08
+[01:09:07] [  77%] +1738s ball 2123/3096 (68%) 3.2fps ETA 5:06
+[01:09:10] [  77%] +1740s ball 2130/3096 (68%) 3.2fps ETA 5:03
+[01:09:12] [  77%] +1742s ball 2136/3096 (68%) 3.2fps ETA 5:02
+[01:09:14] [  77%] +1744s ball 2142/3096 (69%) 3.2fps ETA 5:00
+[01:09:16] [  77%] +1746s ball 2149/3096 (69%) 3.2fps ETA 4:58
+[01:09:18] [  77%] +1748s ball 2156/3096 (69%) 3.2fps ETA 4:55
+[01:09:21] [  77%] +1751s ball 2163/3096 (69%) 3.2fps ETA 4:53
+[01:09:23] [  78%] +1753s ball 2170/3096 (70%) 3.2fps ETA 4:51
+[01:09:25] [  78%] +1755s ball 2177/3096 (70%) 3.2fps ETA 4:49
+[01:09:28] [  78%] +1758s ball 2184/3096 (70%) 3.2fps ETA 4:47
+[01:09:30] [  78%] +1760s ball 2191/3096 (70%) 3.2fps ETA 4:45
+[01:09:32] [  78%] +1762s ball 2197/3096 (70%) 3.2fps ETA 4:43
+[01:09:34] [  78%] +1764s ball 2203/3096 (71%) 3.2fps ETA 4:41
+[01:09:36] [  78%] +1766s ball 2209/3096 (71%) 3.2fps ETA 4:39
+[01:09:38] [  78%] +1768s ball 2215/3096 (71%) 3.2fps ETA 4:37
+[01:09:40] [  78%] +1770s ball 2222/3096 (71%) 3.2fps ETA 4:35
+[01:09:43] [  78%] +1773s ball 2229/3096 (71%) 3.2fps ETA 4:33
+[01:09:45] [  78%] +1775s ball 2235/3096 (72%) 3.2fps ETA 4:31
+[01:09:47] [  78%] +1777s ball 2242/3096 (72%) 3.2fps ETA 4:29
+[01:09:49] [  78%] +1779s ball 2249/3096 (72%) 3.2fps ETA 4:27
+[01:09:51] [  78%] +1781s ball 2256/3096 (72%) 3.2fps ETA 4:25
+[01:09:54] [  78%] +1784s ball 2263/3096 (73%) 3.2fps ETA 4:22
+[01:09:56] [  78%] +1786s ball 2270/3096 (73%) 3.2fps ETA 4:20
+[01:09:58] [  78%] +1788s ball 2277/3096 (73%) 3.2fps ETA 4:18
+[01:10:01] [  78%] +1791s ball 2284/3096 (73%) 3.2fps ETA 4:16
+[01:10:03] [  78%] +1793s ball 2291/3096 (73%) 3.2fps ETA 4:14
+[01:10:05] [  79%] +1795s ball 2298/3096 (74%) 3.2fps ETA 4:11
+[01:10:07] [  79%] +1797s ball 2305/3096 (74%) 3.2fps ETA 4:09
+[01:10:10] [  79%] +1800s ball 2312/3096 (74%) 3.2fps ETA 4:07
+[01:10:12] [  79%] +1802s ball 2318/3096 (74%) 3.2fps ETA 4:05
+[01:10:14] [  79%] +1804s ball 2325/3096 (75%) 3.2fps ETA 4:03
+[01:10:16] [  79%] +1806s ball 2332/3096 (75%) 3.2fps ETA 4:01
+[01:10:19] [  79%] +1809s ball 2339/3096 (75%) 3.2fps ETA 3:59
+[01:10:21] [  79%] +1811s ball 2346/3096 (75%) 3.2fps ETA 3:56
+[01:10:23] [  79%] +1813s ball 2353/3096 (76%) 3.2fps ETA 3:54
+[01:10:25] [  79%] +1815s ball 2360/3096 (76%) 3.2fps ETA 3:52
+[01:10:28] [  79%] +1818s ball 2367/3096 (76%) 3.2fps ETA 3:50
+[01:10:30] [  79%] +1820s ball 2374/3096 (76%) 3.2fps ETA 3:48
+[01:10:32] [  79%] +1822s ball 2381/3096 (76%) 3.2fps ETA 3:45
+[01:10:34] [  79%] +1824s ball 2388/3096 (77%) 3.2fps ETA 3:43
+[01:10:37] [  79%] +1827s ball 2395/3096 (77%) 3.2fps ETA 3:41
+[01:10:39] [  79%] +1829s ball 2401/3096 (77%) 3.2fps ETA 3:39
+[01:10:41] [  79%] +1831s ball 2408/3096 (77%) 3.2fps ETA 3:37
+[01:10:43] [  80%] +1833s ball 2415/3096 (78%) 3.2fps ETA 3:35
+[01:10:46] [  80%] +1836s ball 2422/3096 (78%) 3.2fps ETA 3:33
+[01:10:48] [  80%] +1838s ball 2429/3096 (78%) 3.2fps ETA 3:30
+[01:10:50] [  80%] +1840s ball 2436/3096 (78%) 3.2fps ETA 3:28
+[01:10:52] [  80%] +1842s ball 2443/3096 (78%) 3.2fps ETA 3:26
+[01:10:55] [  80%] +1845s ball 2450/3096 (79%) 3.2fps ETA 3:24
+[01:10:57] [  80%] +1847s ball 2457/3096 (79%) 3.2fps ETA 3:22
+[01:10:59] [  80%] +1849s ball 2464/3096 (79%) 3.2fps ETA 3:19
+[01:11:01] [  80%] +1851s ball 2471/3096 (79%) 3.2fps ETA 3:17
+[01:11:04] [  80%] +1854s ball 2478/3096 (80%) 3.2fps ETA 3:15
+[01:11:06] [  80%] +1856s ball 2485/3096 (80%) 3.2fps ETA 3:13
+[01:11:08] [  80%] +1858s ball 2492/3096 (80%) 3.2fps ETA 3:11
+[01:11:10] [  80%] +1860s ball 2499/3096 (80%) 3.2fps ETA 3:08
+[01:11:13] [  80%] +1863s ball 2506/3096 (80%) 3.2fps ETA 3:06
+[01:11:15] [  80%] +1865s ball 2513/3096 (81%) 3.2fps ETA 3:04
+[01:11:17] [  80%] +1867s ball 2520/3096 (81%) 3.2fps ETA 3:02
+[01:11:19] [  80%] +1869s ball 2527/3096 (81%) 3.2fps ETA 3:00
+[01:11:22] [  80%] +1872s ball 2534/3096 (81%) 3.2fps ETA 2:57
+[01:11:24] [  81%] +1874s ball 2541/3096 (82%) 3.2fps ETA 2:55
+[01:11:26] [  81%] +1876s ball 2548/3096 (82%) 3.2fps ETA 2:53
+[01:11:28] [  81%] +1878s ball 2555/3096 (82%) 3.2fps ETA 2:51
+[01:11:30] [  81%] +1880s ball 2562/3096 (82%) 3.2fps ETA 2:49
+[01:11:33] [  81%] +1883s ball 2569/3096 (82%) 3.2fps ETA 2:46
+[01:11:35] [  81%] +1885s ball 2576/3096 (83%) 3.2fps ETA 2:44
+[01:11:37] [  81%] +1887s ball 2583/3096 (83%) 3.2fps ETA 2:42
+[01:11:39] [  81%] +1889s ball 2590/3096 (83%) 3.2fps ETA 2:40
+[01:11:42] [  81%] +1892s ball 2597/3096 (83%) 3.2fps ETA 2:37
+[01:11:44] [  81%] +1894s ball 2604/3096 (84%) 3.2fps ETA 2:35
+[01:11:46] [  81%] +1896s ball 2611/3096 (84%) 3.2fps ETA 2:33
+[01:11:48] [  81%] +1898s ball 2618/3096 (84%) 3.2fps ETA 2:31
+[01:11:51] [  81%] +1901s ball 2625/3096 (84%) 3.2fps ETA 2:29
+[01:11:53] [  81%] +1903s ball 2632/3096 (85%) 3.2fps ETA 2:26
+[01:11:55] [  81%] +1905s ball 2639/3096 (85%) 3.2fps ETA 2:24
+[01:11:57] [  81%] +1907s ball 2646/3096 (85%) 3.2fps ETA 2:22
+[01:12:00] [  81%] +1910s ball 2653/3096 (85%) 3.2fps ETA 2:20
+[01:12:02] [  81%] +1912s ball 2660/3096 (85%) 3.2fps ETA 2:18
+[01:12:04] [  82%] +1914s ball 2667/3096 (86%) 3.2fps ETA 2:15
+[01:12:06] [  82%] +1916s ball 2674/3096 (86%) 3.2fps ETA 2:13
+[01:12:09] [  82%] +1919s ball 2681/3096 (86%) 3.2fps ETA 2:11
+[01:12:11] [  82%] +1921s ball 2688/3096 (86%) 3.2fps ETA 2:09
+[01:12:13] [  82%] +1923s ball 2695/3096 (87%) 3.2fps ETA 2:06
+[01:12:15] [  82%] +1925s ball 2702/3096 (87%) 3.2fps ETA 2:04
+[01:12:18] [  82%] +1928s ball 2709/3096 (87%) 3.2fps ETA 2:02
+[01:12:20] [  82%] +1930s ball 2716/3096 (87%) 3.2fps ETA 2:00
+[01:12:22] [  82%] +1932s ball 2723/3096 (87%) 3.2fps ETA 1:58
+[01:12:24] [  82%] +1934s ball 2730/3096 (88%) 3.2fps ETA 1:55
+[01:12:27] [  82%] +1937s ball 2737/3096 (88%) 3.2fps ETA 1:53
+[01:12:29] [  82%] +1939s ball 2744/3096 (88%) 3.2fps ETA 1:51
+[01:12:31] [  82%] +1941s ball 2751/3096 (88%) 3.2fps ETA 1:49
+[01:12:33] [  82%] +1943s ball 2758/3096 (89%) 3.2fps ETA 1:47
+[01:12:36] [  82%] +1946s ball 2765/3096 (89%) 3.2fps ETA 1:44
+[01:12:38] [  82%] +1948s ball 2772/3096 (89%) 3.2fps ETA 1:42
+[01:12:40] [  82%] +1950s ball 2779/3096 (89%) 3.2fps ETA 1:40
+[01:12:42] [  82%] +1952s ball 2786/3096 (89%) 3.2fps ETA 1:38
+[01:12:45] [  83%] +1955s ball 2793/3096 (90%) 3.2fps ETA 1:36
+[01:12:47] [  83%] +1957s ball 2800/3096 (90%) 3.2fps ETA 1:33
+[01:12:49] [  83%] +1959s ball 2807/3096 (90%) 3.2fps ETA 1:31
+[01:12:52] [  83%] +1962s ball 2814/3096 (90%) 3.2fps ETA 1:29
+[01:12:54] [  83%] +1964s ball 2821/3096 (91%) 3.2fps ETA 1:27
+[01:12:56] [  83%] +1966s ball 2828/3096 (91%) 3.2fps ETA 1:24
+[01:12:58] [  83%] +1968s ball 2835/3096 (91%) 3.2fps ETA 1:22
+[01:13:01] [  83%] +1971s ball 2842/3096 (91%) 3.2fps ETA 1:20
+[01:13:03] [  83%] +1973s ball 2849/3096 (92%) 3.2fps ETA 1:18
+[01:13:05] [  83%] +1975s ball 2856/3096 (92%) 3.2fps ETA 1:16
+[01:13:07] [  83%] +1977s ball 2863/3096 (92%) 3.2fps ETA 1:13
+[01:13:10] [  83%] +1980s ball 2870/3096 (92%) 3.2fps ETA 1:11
+[01:13:12] [  83%] +1982s ball 2877/3096 (92%) 3.2fps ETA 1:09
+[01:13:14] [  83%] +1984s ball 2884/3096 (93%) 3.2fps ETA 1:07
+[01:13:17] [  83%] +1987s ball 2891/3096 (93%) 3.2fps ETA 1:05
+[01:13:19] [  83%] +1989s ball 2898/3096 (93%) 3.2fps ETA 1:02
+[01:13:21] [  83%] +1991s ball 2905/3096 (93%) 3.2fps ETA 1:00
+[01:13:23] [  84%] +1993s ball 2912/3096 (94%) 3.2fps ETA 0:58
+[01:13:26] [  84%] +1996s ball 2919/3096 (94%) 3.2fps ETA 0:56
+[01:13:28] [  84%] +1998s ball 2926/3096 (94%) 3.2fps ETA 0:53
+[01:13:30] [  84%] +2000s ball 2933/3096 (94%) 3.2fps ETA 0:51
+[01:13:32] [  84%] +2002s ball 2940/3096 (94%) 3.2fps ETA 0:49
+[01:13:34] [  84%] +2004s ball 2946/3096 (95%) 3.2fps ETA 0:47
+[01:13:37] [  84%] +2007s ball 2953/3096 (95%) 3.2fps ETA 0:45
+[01:13:39] [  84%] +2009s ball 2960/3096 (95%) 3.2fps ETA 0:43
+[01:13:41] [  84%] +2011s ball 2967/3096 (95%) 3.2fps ETA 0:40
+[01:13:43] [  84%] +2013s ball 2973/3096 (96%) 3.2fps ETA 0:39
+[01:13:45] [  84%] +2015s ball 2979/3096 (96%) 3.1fps ETA 0:37
+[01:13:48] [  84%] +2018s ball 2986/3096 (96%) 3.1fps ETA 0:34
+[01:13:50] [  84%] +2020s ball 2993/3096 (96%) 3.1fps ETA 0:32
+[01:13:52] [  84%] +2022s ball 3000/3096 (96%) 3.1fps ETA 0:30
+[01:13:54] [  84%] +2024s ball 3007/3096 (97%) 3.1fps ETA 0:28
+[01:13:57] [  84%] +2027s ball 3014/3096 (97%) 3.1fps ETA 0:26
+[01:13:59] [  84%] +2029s ball 3021/3096 (97%) 3.1fps ETA 0:23
+[01:14:01] [  84%] +2031s ball 3028/3096 (97%) 3.1fps ETA 0:21
+[01:14:03] [  85%] +2033s ball 3035/3096 (98%) 3.1fps ETA 0:19
+[01:14:06] [  85%] +2036s ball 3042/3096 (98%) 3.1fps ETA 0:17
+[01:14:08] [  85%] +2038s ball 3049/3096 (98%) 3.1fps ETA 0:14
+[01:14:10] [  85%] +2040s ball 3056/3096 (98%) 3.1fps ETA 0:12
+[01:14:12] [  85%] +2043s ball 3063/3096 (98%) 3.1fps ETA 0:10
+[01:14:15] [  85%] +2045s ball 3070/3096 (99%) 3.1fps ETA 0:08
+[01:14:17] [  85%] +2047s ball 3077/3096 (99%) 3.1fps ETA 0:06
+[01:14:19] [  85%] +2049s ball 3084/3096 (99%) 3.1fps ETA 0:03
+[01:14:22] [  85%] +2052s ball 3091/3096 (99%) 3.1fps ETA 0:01
+ball: detected on 2283/3096 frames (coverage 74%) · jump-gate 960 px/frame
+  inter-detection speed px/frame: median 18 · p90 130 · p99 419 · max 648 · over-gate 0
+gap structure (gaps between detections; fps 30, bridge<= 6 frames, rally-split> 18 frames):
+  bridged (<= 6f, filled by physics): 241 gaps, 424 missing frames
+  arc-break (7..18f, visible break): 36 gaps, 343 missing frames
+  rally-split (> 18f, splits the rally): 1 gaps, 21 missing frames
+  largest breaks at: 23.5s (+22f/0.7s), 46.5s (+18f/0.6s), 15.9s (+17f/0.6s), 22.8s (+16f/0.5s), 66.6s (+15f/0.5s)
+  => scrub the overlay to these timestamps to see if the ball is lost in fast motion.
+[01:14:24] [  85%] +2054s rallies
+rally 0: f19-704 · 521 measured · 44 bounces [f37:A@(0.12,-0.16)!OUT, f45:A@(-0.08,-0.61)!OUT, f54:A@(-0.81,0.14)!OUT, f75:A@(1.58,0.32)!OUT, f92:A@(1.64,0.25)!OUT, f102:A@(2.05,-0.18)!OUT, f109:B@(0.81,1.00), f125:A@(1.85,0.15)!OUT, f132:A@(-0.20,-1.08)!OUT, f157:B@(0.88,0.94), f201:A@(-0.08,0.26)!OUT, f220:A@(-0.53,-0.27)!OUT, f236:A@(-0.23,0.01)!OUT, f249:A@(-0.42,0.11)!OUT, f268:B@(0.84,0.79), f284:A@(-0.34,-0.95)!OUT, f288:A@(0.10,-0.46)!OUT, f296:A@(1.17,-0.04)!OUT, f311:B@(0.43,0.83), f329:A@(0.58,-0.08)!OUT, f342:A@(1.83,0.19)!OUT, f364:A@(0.83,-0.18)!OUT, f371:A@(2.78,-0.32)!OUT, f377:A@(0.69,-0.20)!OUT, f390:A@(2.61,-0.51)!OUT, f396:A@(2.53,-0.53)!OUT, f402:A@(0.77,-0.17)!OUT, f414:A@(0.90,-0.16)!OUT, f427:A@(0.45,-0.45)!OUT, f437:A@(1.28,-0.14)!OUT, f441:A@(0.85,-0.11)!OUT, f453:A@(0.90,-0.53)!OUT, f476:B@(0.15,0.64), f510:A@(-0.56,0.12)!OUT, f539:A@(0.26,-0.11)!OUT, f558:A@(0.71,0.44), f581:B@(0.63,0.75), f597:B@(0.69,0.77), f611:A@(0.95,0.16), f621:A@(0.78,0.42), f635:A@(0.19,-0.08)!OUT, f650:A@(0.17,-0.25)!OUT, f679:A@(1.38,0.39)!OUT, f684:A@(0.13,-0.99)!OUT] · camera=reproj=0.0px · court_xy X[-32.2,9.2] Y[-108.7,33.2] · world_ft X[-4.0,24.0] Y[-4.0,48.0] Z[0.0,3.6] · off-court 0/679
+  bias@f148 (Z=3.6ft): ground-proj vs ray differ 38.8ft
+  shots (43): 0:serve@f19(?,1mph) -> 1:return@f26(?,49mph) -> 2:drive@f47(?,142mph) -> 3:drive@f59(?,142mph) -> 4:drive@f85(?,56mph) -> 5:drive@f97(?,448mph) -> 6:drive@f106(?,448mph) -> 7:drive@f116(?,198mph) -> 8:drive@f129(?,86mph) -> 9:drive@f140(?,162mph) -> 10:drive@f175(?,604mph) -> 11:drive@f185(?,604mph) -> 12:drive@f213(?,90mph) -> 13:drive@f231(?,79mph) -> 14:drive@f243(?,254mph) -> 15:drive@f258(?,290mph) -> 16:drive@f279(?,91mph) -> 17:drive@f293(?,335mph) -> 18:drive@f317(?,100mph) -> 19:drive@f338(?,75mph) -> 20:drive@f354(?,87mph) -> 21:drive@f368(?,102mph) -> 22:drive@f386(?,36mph) -> 23:drive@f393(?,91mph) -> 24:groundstroke@f409(?,17mph) -> 25:drive@f422(?,141mph) -> 26:drive@f429(?,323mph) -> 27:drive@f439(A,308mph) -> 28:drive@f462(?,176mph) -> 29:drive@f478(B,53mph) -> 30:drive@f495(?,43mph) -> 31:drive@f508(?,604mph) -> 32:drive@f527(?,604mph) -> 33:drive@f548(?,78mph) -> 34:drive@f562(?,78mph) -> 35:groundstroke@f570(?) -> 36:drive@f585(?,168mph) -> 37:drive@f605(?,100mph) -> 38:drive@f615(?,147mph) -> 39:drive@f629(?,25mph) -> 40:groundstroke@f645(?,9mph) -> 41:drive@f664(?,162mph) -> 42:groundstroke@f701(?,19mph)
+rally 1: f726-3089 · 1762 measured · 145 bounces [f744:A@(0.28,0.46), f760:A@(0.97,-0.62)!OUT, f781:B@(0.91,0.69), f794:B@(1.25,0.71)!OUT, f821:A@(0.50,0.31), f833:A@(0.31,-0.26)!OUT, f837:A@(0.34,-0.18)!OUT, f879:A@(0.17,0.09), f900:A@(-0.08,-0.20)!OUT, f914:A@(-0.19,-0.31)!OUT, f928:A@(-0.16,-0.29)!OUT, f937:A@(-0.16,-0.28)!OUT, f944:A@(-0.17,-0.27)!OUT, f967:A@(-0.15,-0.20)!OUT, f981:A@(1.70,0.34)!OUT, f1000:A@(2.77,-0.39)!OUT, f1009:A@(2.34,-0.34)!OUT, f1018:A@(2.34,-0.30)!OUT, f1026:A@(-0.27,-0.14)!OUT, f1033:A@(0.77,-0.02), f1057:A@(-0.82,-0.19)!OUT, f1068:B@(0.76,0.95), f1072:A@(0.04,-0.54)!OUT, f1081:A@(-0.37,-0.97)!OUT, f1114:B@(0.54,0.65), f1124:B@(0.70,1.00), f1145:B@(0.61,1.00), f1157:A@(0.25,-0.22)!OUT, f1169:A@(0.36,-0.09)!OUT, f1194:A@(-0.79,0.11)!OUT, f1209:B@(0.22,0.98), f1213:B@(0.62,0.63), f1223:A@(0.12,-0.28)!OUT, f1237:A@(2.30,-0.36)!OUT, f1252:A@(0.42,-1.05)!OUT, f1268:A@(0.30,0.10), f1279:A@(0.13,-0.54)!OUT, f1329:B@(0.98,0.91), f1339:A@(0.06,-1.61)!OUT, f1373:A@(0.60,0.03), f1414:A@(0.24,0.36), f1434:A@(0.46,0.14), f1440:A@(0.09,0.36), f1450:A@(-0.10,0.18)!OUT, f1486:A@(0.52,0.09), f1499:A@(0.59,-0.63)!OUT, f1509:A@(-0.26,0.16)!OUT, f1521:B@(-0.20,0.62)!OUT, f1536:B@(0.49,0.58), f1542:A@(1.89,0.27)!OUT, f1564:A@(3.18,-0.70)!OUT, f1583:A@(2.63,-0.43)!OUT, f1597:A@(0.26,-0.00), f1602:A@(0.10,0.02), f1609:A@(2.26,-0.67)!OUT, f1614:A@(-0.19,-0.24)!OUT, f1629:B@(0.31,1.00), f1648:A@(2.33,-0.30)!OUT, f1689:B@(0.52,0.68), f1708:A@(0.48,0.45), f1725:B@(0.40,0.99), f1744:B@(0.37,1.02), f1770:A@(2.48,-0.25)!OUT, f1785:A@(2.46,-0.39)!OUT, f1796:A@(2.14,-0.17)!OUT, f1815:B@(0.22,0.59), f1835:A@(0.52,0.45), f1854:A@(0.71,0.18), f1866:A@(0.84,-0.46)!OUT, f1898:B@(0.32,0.68), f1933:A@(0.60,0.48), f1950:B@(0.59,0.53), f1962:B@(0.59,0.56), f1968:B@(0.60,0.54), f1978:A@(0.30,0.26), f1997:A@(2.13,-0.11)!OUT, f2030:A@(2.09,-0.14)!OUT, f2039:B@(-0.24,0.65)!OUT, f2066:A@(1.51,-0.01)!OUT, f2074:B@(0.00,0.80), f2096:B@(0.20,0.96), f2103:B@(1.14,0.87)!OUT, f2107:B@(1.28,0.71)!OUT, f2126:B@(0.88,1.00), f2136:B@(0.23,1.00), f2149:A@(1.07,0.16)!OUT, f2171:B@(0.17,0.94), f2188:B@(0.19,0.96), f2192:B@(-0.17,0.67)!OUT, f2199:B@(0.75,0.99), f2232:A@(0.15,0.16), f2247:A@(0.06,-0.15)!OUT, f2281:B@(0.87,0.67), f2336:A@(0.08,-0.19)!OUT, f2340:A@(-0.01,-0.43)!OUT, f2356:A@(2.79,-0.56)!OUT, f2364:A@(0.16,0.08), f2379:A@(1.43,0.38)!OUT, f2404:A@(0.59,0.08), f2409:B@(0.57,0.59), f2415:B@(0.47,0.53), f2440:A@(1.64,0.22)!OUT, f2454:A@(0.93,-0.46)!OUT, f2463:A@(-0.16,-0.45)!OUT, f2474:A@(0.02,-0.22)!OUT, f2486:A@(0.03,-0.35)!OUT, f2493:A@(0.01,-0.32)!OUT, f2511:A@(0.11,-0.15)!OUT, f2523:A@(0.12,-0.20)!OUT, f2542:A@(-0.40,0.27)!OUT, f2550:A@(2.06,0.18)!OUT, f2564:A@(-0.00,-0.60)!OUT, f2586:B@(0.79,0.69), f2629:A@(0.44,0.20), f2643:A@(0.32,-0.42)!OUT, f2675:B@(0.64,0.54), f2715:A@(-0.05,0.29)!OUT, f2735:A@(0.83,0.46), f2758:A@(1.64,-0.05)!OUT, f2771:A@(1.64,-0.08)!OUT, f2781:A@(1.10,-0.17)!OUT, f2794:A@(-0.30,-0.47)!OUT, f2803:A@(0.72,-0.25)!OUT, f2809:A@(-0.19,-0.62)!OUT, f2826:A@(1.56,-0.18)!OUT, f2835:A@(0.39,-0.41)!OUT, f2842:A@(0.39,0.10), f2852:A@(0.40,0.26), f2864:A@(0.31,0.38), f2881:B@(0.34,0.50), f2893:A@(0.36,0.23), f2897:A@(0.19,-0.44)!OUT, f2908:A@(3.72,-0.97)!OUT, f2922:A@(1.88,0.13)!OUT, f2934:A@(-0.08,0.03)!OUT, f2954:A@(1.90,0.13)!OUT, f2974:A@(1.63,0.11)!OUT, f2978:A@(0.21,0.19), f2995:A@(1.68,0.41)!OUT, f3017:A@(1.70,0.34)!OUT, f3032:A@(1.65,0.32)!OUT, f3043:A@(1.65,0.30)!OUT, f3051:A@(1.65,0.29)!OUT, f3057:A@(1.87,0.19)!OUT, f3070:A@(1.33,0.03)!OUT] · camera=reproj=0.0px · court_xy X[-54.2,1091.7] Y[-236.0,7766.0] · world_ft X[-4.0,24.0] Y[-4.0,48.0] Z[0.0,5.2] · off-court 0/2352
+  bias@f2598 (Z=5.2ft): ground-proj vs ray differ 149.7ft
+  shots (138): 0:serve@f726(?,105mph) -> 1:return@f740(?,224mph) -> 2:drive@f755(?,138mph) -> 3:drive@f767(?,156mph) -> 4:drive@f806(?,102mph) -> 5:drive@f831(?,547mph) -> 6:drive@f849(?,554mph) -> 7:drive@f859(?,537mph) -> 8:drive@f890(?,44mph) -> 9:drive@f908(?,92mph) -> 10:drive@f933(?,153mph) -> 11:drive@f946(?,179mph) -> 12:drive@f973(?,100mph) -> 13:drive@f997(?,110mph) -> 14:drive@f1013(?,256mph) -> 15:drive@f1022(?,262mph) -> 16:groundstroke@f1049(?,24mph) -> 17:drive@f1060(?,317mph) -> 18:drive@f1074(?,604mph) -> 19:drive@f1088(?,604mph) -> 20:groundstroke@f1096(?) -> 21:drive@f1103(?,172mph) -> 22:drive@f1118(?,113mph) -> 23:drive@f1129(?,376mph) -> 24:drive@f1152(?,116mph) -> 25:drive@f1163(?,112mph) -> 26:drive@f1182(?,136mph) -> 27:drive@f1203(?,158mph) -> 28:drive@f1221(?,158mph) -> 29:groundstroke@f1228(?,8mph) -> 30:groundstroke@f1248(?) -> 31:drive@f1255(?,604mph) -> 32:drive@f1287(?,604mph) -> 33:drive@f1301(?,561mph) -> 34:drive@f1312(?,564mph) -> 35:drive@f1337(?,35mph) -> 36:drive@f1351(?,604mph) -> 37:drive@f1359(?,604mph) -> 38:drive@f1385(?,193mph) -> 39:drive@f1416(?,74mph) -> 40:drive@f1426(?,90mph) -> 41:groundstroke@f1464(?) -> 42:drive@f1471(?,48mph) -> 43:drive@f1497(?,183mph) -> 44:drive@f1511(?,195mph) -> 45:drive@f1523(?,148mph) -> 46:drive@f1539(?,106mph) -> 47:drive@f1559(?,255mph) -> 48:drive@f1577(?,255mph) -> 49:drive@f1591(?,150mph) -> 50:drive@f1599(A,154mph) -> 51:drive@f1607(?,286mph) -> 52:drive@f1619(?,418mph) -> 53:drive@f1636(?,251mph) -> 54:drive@f1644(?,103mph) -> 55:drive@f1651(?,29mph) -> 56:groundstroke@f1666(?,5mph) -> 57:drive@f1678(?,41mph) -> 58:drive@f1701(?,49mph) -> 59:drive@f1716(?,290mph) -> 60:drive@f1735(?,450mph) -> 61:drive@f1751(?,604mph) -> 62:drive@f1758(?,604mph) -> 63:drive@f1765(?,537mph) -> 64:drive@f1775(?,535mph) -> 65:drive@f1787(?,579mph) -> 66:drive@f1803(?,105mph) -> 67:drive@f1820(?,73mph) -> 68:drive@f1844(?,115mph) -> 69:drive@f1864(?,124mph) -> 70:drive@f1878(?,134mph) -> 71:groundstroke@f1905(?) -> 72:drive@f1912(?,26mph) -> 73:drive@f1941(A,150mph) -> 74:drive@f1956(?,128mph) -> 75:drive@f1974(?,182mph) -> 76:drive@f1983(?,141mph) -> 77:drive@f2013(?,407mph) -> 78:drive@f2052(?,255mph) -> 79:drive@f2068(?,131mph) -> 80:drive@f2085(?,118mph) -> 81:drive@f2101(?,118mph) -> 82:drive@f2112(?,175mph) -> 83:drive@f2121(?,169mph) -> 84:drive@f2130(?,428mph) -> 85:drive@f2144(?,134mph) -> 86:drive@f2160(?,322mph) -> 87:drive@f2185(?,322mph) -> 88:drive@f2194(?,508mph) -> 89:drive@f2205(?,604mph) -> 90:drive@f2218(?,604mph) -> 91:drive@f2243(?,47mph) -> 92:drive@f2262(?,55mph) -> 93:groundstroke@f2298(?) -> 94:drive@f2309(?,604mph) -> 95:drive@f2324(?,604mph) -> 96:drive@f2348(?,168mph) -> 97:drive@f2368(?,46mph) -> 98:groundstroke@f2388(?) -> 99:drive@f2395(?,208mph) -> 100:drive@f2432(?,151mph) -> 101:drive@f2461(?,27mph) -> 102:drive@f2482(?,42mph) -> 103:drive@f2500(?,30mph) -> 104:groundstroke@f2519(?,11mph) -> 105:drive@f2532(?,99mph) -> 106:drive@f2545(?,120mph) -> 107:drive@f2555(?,82mph) -> 108:drive@f2572(?,144mph) -> 109:drive@f2610(?,85mph) -> 110:drive@f2640(?,123mph) -> 111:drive@f2655(?,140mph) -> 112:drive@f2673(?,201mph) -> 113:drive@f2696(?,86mph) -> 114:drive@f2729(?,274mph) -> 115:drive@f2745(?,47mph) -> 116:drive@f2766(?,78mph) -> 117:drive@f2799(?,83mph) -> 118:drive@f2807(?,134mph) -> 119:drive@f2824(?,134mph) -> 120:drive@f2831(?,133mph) -> 121:drive@f2838(?,175mph) -> 122:drive@f2846(?,157mph) -> 123:drive@f2856(?,38mph) -> 124:drive@f2875(?,212mph) -> 125:drive@f2885(?,146mph) -> 126:drive@f2895(?,80mph) -> 127:drive@f2902(?,161mph) -> 128:drive@f2912(?,64mph) -> 129:drive@f2929(?,70mph) -> 130:drive@f2943(?,179mph) -> 131:drive@f2958(?,171mph) -> 132:drive@f2976(?,100mph) -> 133:drive@f3008(?,32mph) -> 134:drive@f3024(?,55mph) -> 135:drive@f3038(?,150mph) -> 136:drive@f3065(?,221mph) -> 137:drive@f3077(?,42mph)
+[01:14:31] [ 100%] +2061s done
+wrote data/a91d0e3d8d8b/result.json — 2 points, 4 player tracks
