@@ -16,12 +16,20 @@ the now-bridged gap so the pose glides through the occlusion.
 
 from __future__ import annotations
 
+from statistics import median
+
 from pbengine.court.court_model import LENGTH_FT, WIDTH_FT
 
 MAX_STITCH_SEC = 1.5  # longest occlusion bridged; a longer gap is treated as a genuine new player
 MATCH_FT = 8.0        # a fragment must resume within this of the extrapolated last position
 LAMBDA_FT_PER_SEC = 2.0  # time-gap penalty (ft per second) folded into the match cost
 MARGIN_FT = 2.0       # the best candidate must beat the runner-up by this to merge (avoid ambiguity)
+# Two fragments only belong to the same player if they share the same lateral half of the court. In
+# doubles the partners hold left/right, so a candidate whose *median* x is this far (ft) from the
+# chain's median x is the other player — never merge, even when the endpoints happen to abut (the
+# "chimera": a right-baseline track ending where a left-baseline track begins). y is ignored so one
+# player moving up/back across a tracking gap still stitches.
+MERGE_MAX_LATERAL_FT = 5.0
 
 
 def max_stitch_frames(fps: float) -> int:
@@ -47,8 +55,10 @@ def _summarize(recs: list[dict], votes: list[str]) -> dict:
             px, py = _feet(prev["court_xy"])
             vel = ((fx1 - px) / df, (fy1 - py) / df)
     side = max(set(votes), key=votes.count) if votes else None
+    med = (median(_feet(r["court_xy"])[0] for r in rs), median(_feet(r["court_xy"])[1] for r in rs))
     return {"first_frame": first["frame"], "last_frame": last["frame"],
-            "first_xy": (fx0, fy0), "last_xy": (fx1, fy1), "vel": vel, "side": side}
+            "first_xy": (fx0, fy0), "last_xy": (fx1, fy1), "vel": vel, "side": side,
+            "med": med, "n": len(rs)}
 
 
 def stitch_tracks(
@@ -72,6 +82,11 @@ def stitch_tracks(
         for ci, ch in enumerate(chains):
             gap = s["first_frame"] - ch["last_frame"]
             if gap <= 0 or gap > max_gap or (ch["side"] is not None and ch["side"] != s["side"]):
+                continue
+            # Same player => same lateral half. A candidate whose median x is far from the chain's
+            # median x is the other doubles partner; never fuse them, however close the endpoints sit
+            # (the right-end-meets-left-start chimera). Endpoint distances can't see this — medians can.
+            if abs(ch["cmed"][0] - s["med"][0]) >= MERGE_MAX_LATERAL_FT:
                 continue
             # Raw last->first distance must be sane on its own. Velocity extrapolation (below) is only
             # a cost/tiebreaker — it must not be able to *expand* the match radius and claim a player
@@ -97,6 +112,11 @@ def stitch_tracks(
             print(f"stitch: track {tid} -> chain {ch['ids']} MERGED "
                   f"(gap={gap}f cost={costs[0][0]:.1f} runner-up={runner})", flush=True)
             ch["ids"].append(tid)
+            # Presence-weighted running centroid of the chain's members (for the lateral gate above).
+            cw = ch["cw"] + s["n"]
+            ch["cmed"] = ((ch["cmed"][0] * ch["cw"] + s["med"][0] * s["n"]) / cw,
+                          (ch["cmed"][1] * ch["cw"] + s["med"][1] * s["n"]) / cw)
+            ch["cw"] = cw
             ch.update(last_frame=s["last_frame"], last_xy=s["last_xy"], vel=s["vel"])
         else:
             best = f"{costs[0][0]:.1f}" if costs else "none"
@@ -105,7 +125,7 @@ def stitch_tracks(
             print(f"stitch: track {tid} new chain ({reason}; best={best} runner-up={runner})",
                   flush=True)
             chains.append({"ids": [tid], "last_frame": s["last_frame"], "last_xy": s["last_xy"],
-                           "vel": s["vel"], "side": s["side"]})
+                           "vel": s["vel"], "side": s["side"], "cmed": s["med"], "cw": s["n"]})
     groups = [ch["ids"] for ch in chains]
     merged = [g for g in groups if len(g) > 1]
     print(f"stitch: {len(raw_by_id)} raw tracks -> {len(groups)} players"

@@ -69,6 +69,16 @@ def test_does_not_merge_overlapping_tracks():
     assert _groups(raw, votes) == [[1], [2]]
 
 
+def test_abutting_endpoints_but_far_medians_stay_separate():
+    # The "chimera": a right-side player (track 1, median x~0.83) drifts toward center as it ends, and
+    # a left-side player (track 2, median x~0.34) begins right where track 1 left off. The endpoints
+    # abut (small raw gap) but the medians are ~10 ft apart laterally -> they are two players, not one.
+    raw = {1: _track_x(0, 30, 0.95, 0.85, -0.014),   # 0.95 -> ~0.53 end; median ~0.74 (right)
+           2: _track_x(33, 60, 0.50, 0.85, -0.006)}  # starts ~0.50 (abuts), median ~0.42 (left)
+    votes = {1: ["B"] * 31, 2: ["B"] * 28}
+    assert _groups(raw, votes) == [[1], [2]]
+
+
 def test_velocity_cannot_fabricate_cross_court_merge():
     # The "chimera" bug: track 1 ends far-right (x~0.83) moving left fast; track 2 starts far-left
     # (x~0.39). Velocity extrapolation alone would pull the prediction near track 2 and merge them,
