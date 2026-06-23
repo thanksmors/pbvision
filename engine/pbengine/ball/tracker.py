@@ -147,10 +147,14 @@ class BallTracker:
         frames = np.array([r[0] for r in raw])
         xy = np.array([[r[1], r[2]] for r in raw], dtype=float)
         conf = np.array([r[3] for r in raw], dtype=float)
+        # Apparent ball radius (depth cue) is an optional 5th field; NaN where absent so it survives
+        # the keep-mask alignment, then mapped back to None per sample.
+        radii = np.array([r[4] if len(r) > 4 and r[4] is not None else np.nan for r in raw],
+                         dtype=float)
 
         gate = max_px_per_frame if max_px_per_frame is not None else self._gate_px()
         keep = gate_jumps(frames, xy, gate)
-        frames, xy, conf = frames[keep], xy[keep], conf[keep]
+        frames, xy, conf, radii = frames[keep], xy[keep], conf[keep], radii[keep]
         smoothed = smooth(frames, xy)
 
         court = project(homography, smoothed) if homography is not None else None
@@ -163,6 +167,7 @@ class BallTracker:
                     court_xy=(_court_xy_or_none(float(court[i, 0]), float(court[i, 1]))
                           if court is not None else None),
                     conf=float(conf[i]),
+                    radius_px=(float(radii[i]) if np.isfinite(radii[i]) else None),
                 )
             )
         return samples

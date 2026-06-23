@@ -77,8 +77,57 @@ def _percentile(sorted_vals, q: float) -> float:
     return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (pos - lo)
 
 
+def _pearson(xs, ys) -> float | None:
+    """Pearson correlation of two equal-length sequences, or None if undefined (n<2 / zero variance)."""
+    n = len(xs)
+    if n < 2:
+        return None
+    mx, my = sum(xs) / n, sum(ys) / n
+    sxx = sum((x - mx) ** 2 for x in xs)
+    syy = sum((y - my) ** 2 for y in ys)
+    if sxx <= 0 or syy <= 0:
+        return None
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    return sxy / (sxx * syy) ** 0.5
+
+
+def size_report(samples, focal_px: float | None = None) -> None:
+    """Log apparent-ball-size (radius_px) stats + whether it behaves like a depth cue.
+
+    The premise (user's): a farther ball is smaller. With the camera behind a baseline, "farther"
+    means larger court-y, so a clean cue shows **negative** correlation between radius_px and court-y.
+    We report that correlation (measured first; the 3D blend is a follow-up gated on it). When the
+    focal length is known, also report the median size-implied depth so its scale can be sanity-checked.
+    """
+    rad = [(s.radius_px, s.court_xy) for s in samples
+           if s.radius_px is not None and s.radius_px > 0]
+    if not rad:
+        print("ball-size: no radius_px on any sample (extraction unavailable this run)", flush=True)
+        return
+    rs = sorted(r for r, _ in rad)
+    print(f"ball-size: radius_px on {len(rad)}/{len(samples)} samples · "
+          f"median {_percentile(rs, 50):.1f} px · p10 {_percentile(rs, 10):.1f} · "
+          f"p90 {_percentile(rs, 90):.1f}", flush=True)
+    paired = [(r, c[1]) for r, c in rad if c is not None]
+    if len(paired) >= 2:
+        r = _pearson([p[0] for p in paired], [p[1] for p in paired])
+        verdict = "?" if r is None else ("looks like a depth cue" if r < -0.2
+                                         else "weak/!expected" if r < 0.2 else "wrong sign")
+        print(f"  radius_px vs court-y over {len(paired)} in-court samples: "
+              f"pearson r={r if r is None else round(r, 2)} ({verdict})", flush=True)
+    if focal_px:
+        from pbengine.ball.size import depth_from_radius
+
+        depths = [d for r, _ in rad if (d := depth_from_radius(r, focal_px)) is not None]
+        if depths:
+            depths.sort()
+            print(f"  size-implied camera depth (focal {focal_px:.0f}px): "
+                  f"median {_percentile(depths, 50):.0f} ft · p10 {_percentile(depths, 10):.0f} · "
+                  f"p90 {_percentile(depths, 90):.0f}", flush=True)
+
+
 def coverage_report(samples, n_frames: int, fps: float, gate_px: float | None = None,
-                    court_outliers: int | None = None) -> None:
+                    court_outliers: int | None = None, focal_px: float | None = None) -> None:
     """Log ball coverage, inter-detection pixel speed, and gap structure for one analysis run.
 
     ``samples`` are the post-gate :class:`~pbengine.schema.models.BallSample` (``.frame``, ``.px``).
@@ -111,3 +160,4 @@ def coverage_report(samples, n_frames: int, fps: float, gate_px: float | None = 
         print("  => low coverage: the WASB CNN is missing the ball on most frames (it sees a single "
               "512x288 downscaled pass; a fast ball shrinks to a few px). Likely needs a high-res "
               "crop / motion-cue fallback, not a threshold tweak.", flush=True)
+    size_report(ss, focal_px=focal_px)

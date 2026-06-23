@@ -120,6 +120,10 @@ class BallSample(BaseModel):
         "reconstruction; None when the camera/trajectory could not be recovered"
     )
     speed_mph: float | None = Field(None, description="ball speed at this frame, mph (3D)")
+    radius_px: float | None = Field(
+        None, description="apparent ball radius in source pixels (from the detection heatmap blob); a "
+        "depth cue — smaller when farther from camera. None when unavailable."
+    )
     interpolated: bool = Field(
         False, description="True if this sample was physics-interpolated to fill a detection gap "
         "(conf=0); measured detections are False. Excluded from speed/height records."

@@ -7,8 +7,9 @@ submodule + weights, none of which are present in CI).
 import numpy as np
 import pytest
 
+from pbengine.ball.size import depth_from_radius
 from pbengine.ball.tracker import BallTracker, _court_xy_or_none
-from pbengine.ball.wasb import _DotDict, _wrap
+from pbengine.ball.wasb import _blob_radius_px, _DotDict, _wrap
 
 
 def test_dotdict_supports_attr_and_item_access():
@@ -59,6 +60,38 @@ def test_postprocess_nulls_off_court_ball_projection():
     off_court = bt.postprocess([(0, 9000.0, 400.0, 0.9), (1, 9000.0, 400.0, 0.9)], homography=H)
     assert all(s.court_xy is None for s in off_court)       # off-court projection -> discarded
     assert all(s.px[0] > 1000 for s in off_court)            # pixels still present (coverage preserved)
+
+
+def test_depth_from_radius_geometry():
+    # depth = focal_px * (diameter/2) / radius_px
+    assert depth_from_radius(5.0, 1000.0, 0.243) == pytest.approx(1000.0 * 0.1215 / 5.0)
+    # a smaller (farther) ball implies a larger depth
+    assert depth_from_radius(2.0, 1000.0) > depth_from_radius(8.0, 1000.0)
+    # degenerate inputs carry no depth
+    assert depth_from_radius(0.0, 1000.0) is None
+    assert depth_from_radius(5.0, 0.0) is None
+    assert depth_from_radius(None, 1000.0) is None
+
+
+def test_blob_radius_from_synthetic_heatmap():
+    # A gaussian blob (sigma=2) centred at (x=12, y=9); identity heatmap->source affine.
+    h = w = 24
+    yy, xx = np.mgrid[0:h, 0:w]
+    hm = np.exp(-(((xx - 12) ** 2 + (yy - 9) ** 2) / (2 * 2.0 ** 2))).astype(np.float32)
+    trans = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    r = _blob_radius_px(hm, (12, 9), trans, 0.3)
+    assert r is not None and 0.5 < r < 8.0          # ~the blob's spread, in (here equal) source px
+    assert _blob_radius_px(hm, (1, 1), trans, 0.3) is None      # off the blob (below threshold)
+    assert _blob_radius_px(hm, (100, 100), trans, 0.3) is None  # out of heatmap bounds
+
+
+def test_postprocess_carries_radius_px():
+    bt = BallTracker(max_px_per_frame=1e9)  # disable gating; stable positions so smoothing is a no-op
+    with_r = bt.postprocess([(0, 100.0, 100.0, 0.9, 4.0), (1, 100.0, 100.0, 0.9, 3.0)], homography=None)
+    assert [round(s.radius_px, 1) for s in with_r] == [4.0, 3.0]
+    # Legacy 4-tuple detections (no radius) round-trip to radius_px=None.
+    without_r = bt.postprocess([(0, 100.0, 100.0, 0.9), (1, 100.0, 100.0, 0.9)], homography=None)
+    assert all(s.radius_px is None for s in without_r)
 
 
 def test_fast_ball_survives_resolution_aware_gate():

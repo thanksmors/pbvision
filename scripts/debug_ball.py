@@ -134,7 +134,7 @@ def _save_dets(path: str, raw, w: int, h: int, fps: float) -> None:
 
     with open(path, "w") as fh:
         json.dump({"width": w, "height": h, "fps": fps,
-                   "dets": [[int(f), float(x), float(y), float(c)] for f, x, y, c in raw]}, fh)
+                   "dets": [[int(r[0]), float(r[1]), float(r[2]), float(r[3])] for r in raw]}, fh)
     print(f"saved {len(raw)} raw detections -> {path}")
 
 

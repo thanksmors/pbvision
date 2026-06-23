@@ -34,6 +34,48 @@ _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
+def _blob_radius_px(hm, center_src, trans, score_threshold) -> float | None:
+    """Apparent ball radius in SOURCE pixels from the heatmap blob nearest a detection.
+
+    The WASB postprocessor returns blob centres (source coords), the raw heatmap ``hm`` (model
+    resolution) and the heatmap->source affine ``trans``, but discards each blob's extent. We re-find
+    the above-threshold connected component under the detection and take its intensity-weighted RMS
+    spread (a sub-heatmap-pixel size), scaled to source pixels by the affine. The ball shrinks with
+    distance, so this is a monocular depth cue. Runs in the detector hot path, so **any** failure
+    returns None — it must never break detection.
+    """
+    try:
+        import cv2
+
+        a = np.asarray(trans, dtype=np.float64)
+        inv = cv2.invertAffineTransform(a)
+        sx, sy = float(center_src[0]), float(center_src[1])
+        hx = inv[0, 0] * sx + inv[0, 1] * sy + inv[0, 2]
+        hy = inv[1, 0] * sx + inv[1, 1] * sy + inv[1, 2]
+        height, width = hm.shape[:2]
+        ix, iy = int(round(hx)), int(round(hy))
+        if not (0 <= ix < width and 0 <= iy < height):
+            return None
+        mask = (hm > score_threshold).astype(np.uint8)
+        _n, labels = cv2.connectedComponents(mask)
+        lab = int(labels[iy, ix])
+        if lab == 0:  # detection centre not on an above-threshold blob
+            return None
+        ys, xs = np.where(labels == lab)
+        ws = hm[ys, xs].astype(np.float64)
+        wsum = float(ws.sum())
+        if wsum <= 0.0 or xs.size < 1:
+            return None
+        cx = float((xs * ws).sum() / wsum)
+        cy = float((ys * ws).sum() / wsum)
+        sigma_hm = float(np.sqrt((((xs - cx) ** 2 + (ys - cy) ** 2) * ws).sum() / wsum))
+        scale = 0.5 * (np.hypot(a[0, 0], a[1, 0]) + np.hypot(a[0, 1], a[1, 1]))  # heatmap->source px
+        radius = float(sigma_hm * scale)
+        return radius if np.isfinite(radius) and radius > 0.0 else None
+    except Exception:
+        return None
+
+
 class _DotDict(dict):
     """dict that also allows attribute access (HRNet reads cfg.MODEL.EXTRA and cfg['...'])."""
 
@@ -137,6 +179,7 @@ class WasbBall:
         self._device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.device = self._device  # public: callers report cpu vs cuda
         self._step = max(1, min(int(step), _FRAMES_IN))
+        self._score_threshold = score_threshold  # for the apparent-size (blob radius) extraction
 
         cfg = _build_cfg(
             _SRC / "configs" / "model" / "wasb.yaml",
@@ -169,8 +212,10 @@ class WasbBall:
         video_path: str,
         progress=None,
         max_frames: int | None = None,
-    ) -> list[tuple[int, float, float, float]]:
-        """Return ``(frame, x, y, conf)`` ball detections in source-pixel coords.
+    ) -> list[tuple]:
+        """Return ``(frame, x, y, conf, radius_px)`` ball detections in source-pixel coords.
+
+        ``radius_px`` is the apparent ball radius (a depth cue, smaller when farther) or None.
 
         Two passes:
 
@@ -224,7 +269,11 @@ class WasbBall:
                 bucket = candidates.setdefault(fidx, [])
                 res = results[0][eid][0]
                 for xy, sc in zip(res["xys"], res["scores"]):
-                    bucket.append((np.asarray(xy, dtype=float), float(sc)))
+                    # res carries the heatmap + affine; .get(...)/getattr so a stub or missing field
+                    # just yields radius=None instead of raising in this hot path.
+                    radius = _blob_radius_px(res.get("hm"), xy, res.get("trans"),
+                                             getattr(self, "_score_threshold", 0.3))
+                    bucket.append((np.asarray(xy, dtype=float), float(sc), radius))
 
         buf = [first]
         start = 0
@@ -256,17 +305,29 @@ class WasbBall:
         # Pass 2: sequential online tracking over the pooled candidates.
         self._tracker.refresh()
         n_track = min(n, max_frames) if max_frames is not None else n
-        raw: list[tuple[int, float, float, float]] = []
+        raw: list[tuple] = []
         for fidx in range(n_track):
-            dets = [{"xy": xy, "score": sc} for xy, sc in candidates.get(fidx, [])]
+            cand = candidates.get(fidx, [])
+            dets = [{"xy": c[0], "score": c[1]} for c in cand]
             out = self._tracker.update(dets)
             if out["visi"]:
-                raw.append((fidx, float(out["x"]), float(out["y"]), float(out["score"])))
+                # The tracker fuses the pooled candidates and returns one (x, y); recover the apparent
+                # size from the nearest candidate blob (radius is purely diagnostic, so guard to None).
+                radius = None
+                try:
+                    if cand:
+                        ox, oy = float(out["x"]), float(out["y"])
+                        j = min(range(len(cand)),
+                                key=lambda k: (cand[k][0][0] - ox) ** 2 + (cand[k][0][1] - oy) ** 2)
+                        radius = cand[j][2]
+                except Exception:
+                    radius = None
+                raw.append((fidx, float(out["x"]), float(out["y"]), float(out["score"]), radius))
             if progress is not None:
                 progress("track", fidx + 1, n_track)
 
         # Blob scores are unbounded; normalize to [0, 1] so they satisfy the BallSample schema.
         if raw:
             max_score = max(r[3] for r in raw) or 1.0
-            raw = [(f, x, y, min(1.0, s_ / max_score)) for (f, x, y, s_) in raw]
+            raw = [(f, x, y, min(1.0, s_ / max_score), rad) for (f, x, y, s_, rad) in raw]
         return raw

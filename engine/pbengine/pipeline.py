@@ -134,7 +134,9 @@ def analyze_match(
         # When a court was solved, a None court_xy means the ground projection was discarded as an
         # off-court outlier (airborne/vanishing-line); report how many so the effect is visible.
         outliers = sum(1 for s in ball if s.court_xy is None) if homography is not None else None
-        coverage_report(ball, meta.frames, meta.fps, gate_px=gate, court_outliers=outliers)
+        focal = getattr(camera, "focal_px", None)
+        coverage_report(ball, meta.frames, meta.fps, gate_px=gate, court_outliers=outliers,
+                        focal_px=focal)
     except Exception as exc:  # diagnostics must never break a run
         print(f"ball diag: skipped ({exc})", flush=True)
 
