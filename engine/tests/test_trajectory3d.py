@@ -20,6 +20,7 @@ from pbengine.ball.trajectory3d import (
     _fit_parabola,
     _height_at,
     _height_knots,
+    _net_crossing_frames,
     _segment_bounds,
     ball_world_ft,
     densify_rally,
@@ -349,14 +350,39 @@ def test_height_model_clears_the_net_and_honors_contacts():
                Bounce(frame=70, court_xy=(0.5, 0.7), side=Team.B, in_bounds=True)]
     samples = [BallSample(frame=f, px=(0.0, 0.0), court_xy=(0.5, 0.30 + 0.40 * (f - 10) / 63),
                           conf=1.0) for f in range(10, 71)]
-    knots = dict(_height_knots(samples, bounces, None, 10, 70))
-    cross = next(f for f in knots if abs(knots[f] - NET_CLEARANCE_FT) < 1e-9)  # crossing knot exists
-    # At the net crossing the modeled height clears the 36" net.
-    assert _height_at(cross, sorted(knots.items()), fps) >= NET_HEIGHT_FT - 1e-9
+    knots = _height_knots(samples, bounces, None, 10, 70, fps)
+    cross = _net_crossing_frames(samples)[0]
+    # The natural bounce-to-bounce arc already clears the 36" net, so no hard pin is needed.
+    assert _height_at(cross, knots, fps) >= NET_HEIGHT_FT
     # A contact knot pins the hitter's contact height.
-    k2 = dict(_height_knots(samples, bounces, [(40, 4.0)], 10, 70))
+    k2 = dict(_height_knots(samples, bounces, [(40, 4.0)], 10, 70, fps))
     assert abs(k2[40] - 4.0) < 1e-9
     assert abs(_height_at(40, sorted(k2.items()), fps) - 4.0) < 1e-9
+
+
+def test_lob_over_net_is_not_flattened_to_net_height():
+    fps = 30.0
+    # A high contact (9 ft) arcing down to a bounce: the ball crosses the net well above the tape.
+    bounces = [Bounce(frame=60, court_xy=(0.5, 0.7), side=Team.B, in_bounds=True)]
+    samples = [BallSample(frame=f, px=(0.0, 0.0), court_xy=(0.5, 0.30 + 0.37 * (f - 20) / 40),
+                          conf=1.0) for f in range(20, 61)]
+    knots = _height_knots(samples, bounces, [(20, 9.0)], 20, 60, fps)
+    cross = _net_crossing_frames(samples)[0]
+    # The old code pinned every crossing to ~3.2 ft; the lob must keep its natural (much higher) arc.
+    assert _height_at(cross, knots, fps) > NET_CLEARANCE_FT + 2.0
+    assert all(abs(z - NET_CLEARANCE_FT) > 1e-9 for f, z in knots if f == cross)  # no net pin added
+
+
+def test_low_ball_is_lifted_to_clear_the_net():
+    fps = 30.0
+    # Two Z=0 rally edges a few frames apart straddling the net: the natural arc barely rises, so the
+    # net-crossing must be lifted to clearance so the ball doesn't pass through the tape.
+    samples = [BallSample(frame=f, px=(0.0, 0.0), court_xy=(0.5, 0.30 + 0.37 * f / 4), conf=1.0)
+               for f in range(0, 5)]
+    knots = dict(_height_knots(samples, [], None, 0, 4, fps))
+    cross = _net_crossing_frames(samples)[0]
+    assert abs(knots[cross] - NET_CLEARANCE_FT) < 1e-9               # pinned up to clearance
+    assert _height_at(cross, sorted(knots.items()), fps) >= NET_HEIGHT_FT
 
 
 def test_ball_world_ft_with_camera_reprojects_to_the_2d_track():
@@ -368,7 +394,7 @@ def test_ball_world_ft_with_camera_reprojects_to_the_2d_track():
     # AT that modeled height; ball_world_ft must recover points that reproject to exactly those pixels.
     samples = [BallSample(frame=f, px=(0.0, 0.0), court_xy=(0.5, 0.3 + 0.4 * f / 50), conf=1.0)
                for f in range(0, 51)]
-    knots = _height_knots(samples, bounces, None, 0, 50)
+    knots = _height_knots(samples, bounces, None, 0, 50, fps)
     for s in samples:
         gt = np.array([8.0, 12.0 + 0.3 * s.frame, _height_at(s.frame, knots, fps)])
         px = cam.project(np.array([gt]))[0]

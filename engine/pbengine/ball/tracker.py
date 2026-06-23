@@ -38,6 +38,43 @@ def _court_xy_or_none(cx: float, cy: float) -> tuple[float, float] | None:
         return (cx, cy)
     return None
 
+
+# Fast-ball recall: the CNN drops the ball on short gaps during fast shots. A fast ball is the
+# dominant inter-frame motion in a small window around its predicted path, so a frame-difference peak
+# there recovers it — no GPU/retraining. Recovered points get a low confidence and pass through the
+# same jump-gate + smoothing as real detections.
+_RECALL_MAX_GAP = 18      # only fill gaps up to ~0.6 s (arc-breaks); longer is a real rally break
+_RECALL_CROP_HALF = 40    # search a +/-40 px window around the predicted ball location
+_RECALL_MIN_SCORE = 18.0  # min blurred abs-diff (0-255) to accept a motion peak as the ball
+_RECALL_CONF = 0.3        # confidence stamped on a recovered detection (below a real CNN hit)
+
+
+def _motion_peak(prev_gray, cur_gray, center, half: int, min_score: float):
+    """Locate the strongest motion (a fast ball) near ``center`` via a blurred frame-difference peak.
+
+    Returns ``(x, y, score)`` in full-frame pixels, or None if no motion clears ``min_score`` (or on
+    any failure — this assists detection and must never raise into it).
+    """
+    try:
+        import cv2
+
+        height, width = cur_gray.shape[:2]
+        cx, cy = int(round(center[0])), int(round(center[1]))
+        x0, y0 = max(0, cx - half), max(0, cy - half)
+        x1, y1 = min(width, cx + half + 1), min(height, cy + half + 1)
+        if x1 - x0 < 3 or y1 - y0 < 3:
+            return None
+        diff = cv2.GaussianBlur(
+            np.abs(cur_gray[y0:y1, x0:x1].astype(np.float32)
+                   - prev_gray[y0:y1, x0:x1].astype(np.float32)), (5, 5), 1.0)
+        score = float(diff.max())
+        if score < min_score:
+            return None
+        py, px = np.unravel_index(int(diff.argmax()), diff.shape)
+        return (float(x0 + px), float(y0 + py), score)
+    except Exception:
+        return None
+
 # Badminton weights + score_threshold=0.2 + step=1 won an empirical sweep on real pickleball
 # footage (scripts/debug_ball.py --sweep): ~61% raw coverage, edging tennis, and the overlay
 # confirmed the detections ride the ball. Swap weights/threshold per-clip if footage differs.
@@ -128,7 +165,60 @@ class BallTracker:
         """
         raw = self._raw_detections(video_path, stride, progress=progress, max_frames=max_frames)
         w, h = self._frame_size(video_path)
+        try:  # recover fast-ball frames the CNN missed; never let it break detection
+            recovered = self._recover_gaps(video_path, raw)
+            if recovered:
+                raw = sorted(list(raw) + recovered, key=lambda r: r[0])
+        except Exception as exc:
+            print(f"fast-ball recall: skipped ({exc})", flush=True)
         return self.postprocess(raw, homography, max_px_per_frame=self._gate_px(w, h))
+
+    def _recover_gaps(self, video_path: str | Path, raw: list[tuple]) -> list[tuple]:
+        """Recover dropped fast-ball frames in short gaps via a motion peak near the predicted path.
+
+        For each gap (``2 <= Δframe <= _RECALL_MAX_GAP``) between consecutive detections, the search
+        centre per missing frame is a linear interpolation between the two bracketing (real)
+        detections; the ball is then localized by the frame-difference peak in a small crop there.
+        Returns low-confidence ``(frame, x, y, conf, None)`` tuples to merge into ``raw``.
+        """
+        import cv2
+
+        if len(raw) < 2:
+            return []
+        rs = sorted(raw, key=lambda r: r[0])
+        gaps = [(a, b) for a, b in zip(rs, rs[1:]) if 2 <= int(b[0]) - int(a[0]) <= _RECALL_MAX_GAP]
+        if not gaps:
+            return []
+        cap = cv2.VideoCapture(str(video_path))
+        if not cap.isOpened():
+            return []
+        recovered: list[tuple] = []
+        n_missing = 0
+        try:
+            for (f0, x0, y0, *_), (f1, x1, y1, *_) in gaps:
+                f0, f1 = int(f0), int(f1)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, f0)
+                okp, prev = cap.read()  # frame f0 (the last real detection)
+                if not okp:
+                    continue
+                prev_g = cv2.cvtColor(prev, cv2.COLOR_BGR2GRAY)
+                for f in range(f0 + 1, f1):
+                    okc, cur = cap.read()  # next sequential frame == f
+                    if not okc:
+                        break
+                    n_missing += 1
+                    cur_g = cv2.cvtColor(cur, cv2.COLOR_BGR2GRAY)
+                    a = (f - f0) / (f1 - f0)
+                    center = (x0 + (x1 - x0) * a, y0 + (y1 - y0) * a)
+                    peak = _motion_peak(prev_g, cur_g, center, _RECALL_CROP_HALF, _RECALL_MIN_SCORE)
+                    if peak is not None:
+                        recovered.append((f, peak[0], peak[1], _RECALL_CONF, None))
+                    prev_g = cur_g
+        finally:
+            cap.release()
+        print(f"fast-ball recall: recovered {len(recovered)}/{n_missing} arc-break gap frames",
+              flush=True)
+        return recovered
 
     def postprocess(
         self,

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from pbengine.ball.size import depth_from_radius
-from pbengine.ball.tracker import BallTracker, _court_xy_or_none
+from pbengine.ball.tracker import BallTracker, _court_xy_or_none, _motion_peak
 from pbengine.ball.wasb import _blob_radius_px, _DotDict, _wrap
 
 
@@ -92,6 +92,22 @@ def test_postprocess_carries_radius_px():
     # Legacy 4-tuple detections (no radius) round-trip to radius_px=None.
     without_r = bt.postprocess([(0, 100.0, 100.0, 0.9), (1, 100.0, 100.0, 0.9)], homography=None)
     assert all(s.radius_px is None for s in without_r)
+
+
+def test_motion_peak_localizes_a_moving_blob():
+    # A bright ball at (60,50) in cur that wasn't there in prev -> the frame-diff peak near the
+    # predicted centre localizes it; a flat (no-motion) pair yields None.
+    prev = np.zeros((96, 128), dtype=np.uint8)
+    cur = np.zeros((96, 128), dtype=np.uint8)
+    cur[48:53, 58:63] = 255  # a small bright blob ~ (60, 50)
+    peak = _motion_peak(prev, cur, center=(60, 50), half=40, min_score=18.0)
+    assert peak is not None
+    x, y, score = peak
+    assert abs(x - 60) <= 3 and abs(y - 50) <= 3 and score >= 18.0
+    # No motion -> no peak.
+    assert _motion_peak(prev, prev, center=(60, 50), half=40, min_score=18.0) is None
+    # Motion outside the search window is not picked up.
+    assert _motion_peak(prev, cur, center=(10, 10), half=8, min_score=18.0) is None
 
 
 def test_fast_ball_survives_resolution_aware_gate():

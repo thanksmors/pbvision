@@ -522,16 +522,16 @@ def _height_knots(
     contacts: list[tuple[int, float]] | None,
     start_frame: int,
     end_frame: int,
+    fps: float,
 ) -> list[tuple[int, float]]:
     """Typed height anchors ``(frame, Z_ft)`` the modeled arc must pass through, by precedence.
 
-    Floor contacts pin ``Z=0`` (bounces, rally edges); net-crossings pin ~net clearance so the arc
-    can't dip through the tape; paddle contacts pin the hitter's contact height. Later writes win, so a
-    real bounce/contact overrides a coincident net-crossing.
+    Floor contacts pin ``Z=0`` (bounces, rally edges); paddle contacts pin the hitter's contact
+    height. Net-crossings are a **lower bound**, not a hard pin: the arc is lifted to net clearance
+    only where the bounce/contact arc would otherwise dip *below* the tape — so a lob or high drive
+    keeps its natural (higher) arc instead of being flattened to net height.
     """
     knots: dict[int, float] = {}
-    for f in _net_crossing_frames(out):  # lowest precedence
-        knots[f] = NET_CLEARANCE_FT
     knots.setdefault(out[0].frame, 0.0)
     knots.setdefault(out[-1].frame, 0.0)
     for b in bounces:
@@ -540,6 +540,11 @@ def _height_knots(
     for f, z in contacts or []:  # highest precedence
         if start_frame <= f <= end_frame:
             knots[f] = min(max(z, _CONTACT_Z_RANGE[0]), _CONTACT_Z_RANGE[1])
+    # Net clearance as a floor: only add a knot where the bounce/contact arc sinks below the tape.
+    base = sorted(knots.items())
+    for f in _net_crossing_frames(out):
+        if f not in knots and _height_at(f, base, fps) < NET_CLEARANCE_FT:
+            knots[f] = NET_CLEARANCE_FT
     return sorted(knots.items())
 
 
@@ -588,7 +593,7 @@ def ball_world_ft(
     if not traj:
         return traj
     out = [s.model_copy() for s in sorted(traj, key=lambda s: s.frame)]
-    knots = _height_knots(out, bounces, contacts, start_frame, end_frame)
+    knots = _height_knots(out, bounces, contacts, start_frame, end_frame, fps)
     cc = _camera_center(camera) if camera is not None else None
 
     for s in out:
